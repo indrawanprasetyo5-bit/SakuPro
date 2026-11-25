@@ -134,7 +134,7 @@ class _PinLockScreenState extends State<PinLockScreen> {
                     ),
                     const SizedBox(height: 18),
                     Text(
-                      'SakuPro Terkunci',
+                      'SakuProWann Terkunci',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 6),

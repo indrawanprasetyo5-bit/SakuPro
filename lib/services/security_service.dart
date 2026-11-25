@@ -29,7 +29,7 @@ class BiometricAuthService {
     }
     try {
       return await _auth.authenticate(
-        localizedReason: 'Buka kunci privasi SakuPro',
+        localizedReason: 'Buka kunci privasi SakuProWann',
         options: const AuthenticationOptions(
           biometricOnly: false,
           stickyAuth: true,

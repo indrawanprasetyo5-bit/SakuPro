@@ -61,7 +61,7 @@ class ExportBackupService {
     };
 
     sheet.appendRow(<CellValue>[
-      TextCellValue('LAPORAN KEUANGAN SAKUPRO - $monthLabel'),
+      TextCellValue('LAPORAN KEUANGAN SAKUPROWANN - $monthLabel'),
     ]);
     sheet.appendRow(<CellValue>[
       TextCellValue(
@@ -157,7 +157,7 @@ class ExportBackupService {
     );
     final ym =
         '${month.year}${month.month.toString().padLeft(2, '0')}';
-    final fileName = 'SakuPro_Laporan_$ym.xlsx';
+    final fileName = 'SakuProWann_Laporan_$ym.xlsx';
     final xFile = await createShareableTempFile(
       bytes: bytes,
       fileName: fileName,
@@ -166,8 +166,8 @@ class ExportBackupService {
     );
     await Share.shareXFiles(
       <XFile>[xFile],
-      subject: 'Laporan Keuangan SakuPro $ym',
-      text: 'Laporan transaksi bulanan SakuPro ($ym)',
+      subject: 'Laporan Keuangan SakuProWann $ym',
+      text: 'Laporan transaksi bulanan SakuProWann ($ym)',
     );
   }
 
@@ -183,7 +183,7 @@ class ExportBackupService {
     final map = Map<String, Object?>.from(decoded);
     if (map['app'] != 'saku_pro' || map['wallets'] is! List) {
       throw const FormatException(
-        'Data bukan berkas backup SakuPro yang sah.',
+        'Data bukan berkas backup SakuProWann yang sah.',
       );
     }
     return map;
@@ -193,7 +193,7 @@ class ExportBackupService {
     final jsonString = encodeBackupJson(snapshot);
     final bytes = Uint8List.fromList(utf8.encode(jsonString));
     final stamp = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
-    final fileName = 'SakuPro_Backup_$stamp.json';
+    final fileName = 'SakuProWann_Backup_$stamp.json';
     final xFile = await createShareableTempFile(
       bytes: bytes,
       fileName: fileName,
@@ -201,8 +201,8 @@ class ExportBackupService {
     );
     await Share.shareXFiles(
       <XFile>[xFile],
-      subject: 'Backup Data SakuPro',
-      text: 'Cadangan data lokal SakuPro ($stamp)',
+      subject: 'Backup Data SakuProWann',
+      text: 'Cadangan data lokal SakuProWann ($stamp)',
     );
   }
 }

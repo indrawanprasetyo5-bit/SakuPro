@@ -46,7 +46,7 @@ class _AppShellState extends State<AppShell> {
                 children: <Widget>[
                   CircularProgressIndicator(),
                   SizedBox(height: 14),
-                  Text('Menyiapkan brankas lokal SakuPro...'),
+                  Text('Menyiapkan brankas lokal SakuProWann...'),
                 ],
               ),
             ),

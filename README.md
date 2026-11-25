@@ -1,4 +1,4 @@
-# SakuPro
+# SakuProWann
 
 Aplikasi Android pencatatan keuangan pribadi berbasis Flutter yang berjalan 100% offline-first (SQLite lokal) dengan dukungan Light & Dark Mode.
 

@@ -108,7 +108,7 @@ class HomeScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 const Text(
-                  'SakuPro',
+                  'SakuProWann',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,

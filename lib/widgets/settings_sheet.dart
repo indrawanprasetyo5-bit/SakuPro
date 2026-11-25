@@ -181,7 +181,7 @@ class _SettingsSectionPanelState extends State<SettingsSectionPanel> {
     if (restored == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Seluruh data SakuPro berhasil dipulihkan dari JSON.'),
+          content: Text('Seluruh data SakuProWann berhasil dipulihkan dari JSON.'),
         ),
       );
     }
