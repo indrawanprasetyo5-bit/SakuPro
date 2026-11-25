@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -91,12 +92,38 @@ class ReceiptOcrService {
       );
     }
 
-    final XFile? image = await _picker.pickImage(
-      source: source,
-      imageQuality: 88,
-      maxWidth: 2200,
-    );
-    if (image == null) {
+    XFile? image;
+    try {
+      image = await _picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1600,
+        maxHeight: 2200,
+        requestFullMetadata: false,
+      );
+      if (image == null) {
+        final LostDataResponse lost = await _picker.retrieveLostData();
+        if (!lost.isEmpty && lost.file != null) {
+          image = lost.file;
+        }
+      }
+    } on PlatformException catch (e) {
+      if (e.code == 'camera_access_denied') {
+        throw const ReceiptOcrException(
+          'Izin kamera ditolak. Aktifkan izin kamera di pengaturan aplikasi atau pilih dari Galeri.',
+        );
+      }
+      if (e.code == 'no_available_camera') {
+        throw const ReceiptOcrException(
+          'Kamera tidak ditemukan pada perangkat ini. Silakan pilih foto struk dari Galeri.',
+        );
+      }
+      throw ReceiptOcrException(
+        'Gagal mengambil gambar (${e.code}): ${e.message ?? 'terjadi kendala kamera'}.',
+      );
+    }
+
+    if (image == null || image.path.isEmpty) {
       return null;
     }
 
@@ -110,6 +137,10 @@ class ReceiptOcrService {
         );
       }
       return parseReceiptText(recognized.text);
+    } on PlatformException catch (e) {
+      throw ReceiptOcrException(
+        'Mesin OCR gagal memproses foto (${e.code}): ${e.message ?? 'coba foto ulang dengan pencahayaan cukup'}.',
+      );
     } finally {
       await recognizer.close();
     }

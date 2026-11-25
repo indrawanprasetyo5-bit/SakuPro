@@ -360,11 +360,18 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
     if (_isScanningOcr) {
       return;
     }
+    FocusScope.of(context).unfocus();
     setState(() {
       _isScanningOcr = true;
       _formError = null;
       _ocrInfoBanner = null;
     });
+
+    // Allow popup menu route and soft keyboard to settle before launching camera activity.
+    await Future<void>.delayed(const Duration(milliseconds: 160));
+    if (!mounted) {
+      return;
+    }
 
     try {
       final result = await ReceiptOcrService.scanReceipt(source: source);

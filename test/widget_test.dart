@@ -224,7 +224,7 @@ void main() {
     controller.lockSessionNow();
     await tester.pumpAndSettle();
 
-    expect(find.text('SakuPro Terkunci'), findsOneWidget);
+    expect(find.text('SakuProWann Terkunci'), findsOneWidget);
 
     await tester.tap(find.text('1'));
     await tester.tap(find.text('1'));
@@ -239,7 +239,7 @@ void main() {
     await tester.tap(find.text('0'));
     await tester.pumpAndSettle();
 
-    expect(find.text('SakuPro Terkunci'), findsNothing);
+    expect(find.text('SakuProWann Terkunci'), findsNothing);
     expect(find.text('Insight Otomatis'), findsOneWidget);
   });
 }

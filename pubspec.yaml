@@ -1,7 +1,7 @@
 name: saku_pro
 description: "Aplikasi pencatatan keuangan pribadi offline-first berbasis Flutter."
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.2+3
 
 environment:
   sdk: ^3.14.0
