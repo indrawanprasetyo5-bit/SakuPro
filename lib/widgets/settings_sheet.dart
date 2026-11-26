@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
 import 'auto_capture_sheet.dart';
 import 'budget_dialog.dart';
+import 'luxury_widgets.dart';
 
 class SettingsSheet extends StatelessWidget {
   const SettingsSheet({super.key, required this.controller});
@@ -20,10 +21,8 @@ class SettingsSheet extends StatelessWidget {
     BuildContext context, {
     required FinanceController controller,
   }) {
-    return showModalBottomSheet<void>(
+    return showSakuBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
       builder: (ctx) => SettingsSheet(controller: controller),
     );
   }
@@ -120,7 +119,7 @@ class _SettingsSectionPanelState extends State<SettingsSectionPanel> {
       return;
     }
 
-    final result = await showDialog<(String, bool)>(
+    final result = await showSakuBottomSheet<(String, bool)>(
       context: context,
       builder: (ctx) => _PinSetupDialog(
         biometricAvailable: _biometricAvailable,
@@ -175,7 +174,7 @@ class _SettingsSectionPanelState extends State<SettingsSectionPanel> {
   }
 
   Future<void> _openRestoreDialog() async {
-    final restored = await showDialog<bool>(
+    final restored = await showSakuBottomSheet<bool>(
       context: context,
       builder: (ctx) => _RestoreJsonDialog(controller: widget.controller),
     );
@@ -493,13 +492,26 @@ class _PinSetupDialogState extends State<_PinSetupDialog> {
   @override
   Widget build(BuildContext context) {
     final saku = context.saku;
-    return AlertDialog(
-      title: const Text('Buat PIN 4 Digit'),
-      content: SingleChildScrollView(
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 12, 20, bottomInset + 24),
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
+            const SakuSheetHandle(),
+            const SizedBox(height: 16),
+            Text(
+              'Buat PIN 4 Digit',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Biar catatan keuangan kamu cuma bisa dibuka sama kamu sendiri.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
             TextField(
               controller: _pinController,
               autofocus: true,
@@ -552,16 +564,28 @@ class _PinSetupDialogState extends State<_PinSetupDialog> {
                 ),
               ),
             ],
+            const SizedBox(height: 18),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Batal'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton(
+                    onPressed: _submit,
+                    child: const Text('Aktifkan PIN'),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Batal'),
-        ),
-        FilledButton(onPressed: _submit, child: const Text('Aktifkan PIN')),
-      ],
     );
   }
 }
@@ -599,7 +623,7 @@ class _RestoreJsonDialogState extends State<_RestoreJsonDialog> {
   Future<void> _restore() async {
     final raw = _jsonController.text.trim();
     if (raw.isEmpty) {
-      setState(() => _error = 'Tempel teks JSON backup terlebih dahulu.');
+      setState(() => _error = 'Tempel teks JSON backup dulu ya.');
       return;
     }
     setState(() {
@@ -622,61 +646,79 @@ class _RestoreJsonDialogState extends State<_RestoreJsonDialog> {
   @override
   Widget build(BuildContext context) {
     final saku = context.saku;
-    return AlertDialog(
-      title: const Text('Restore Data dari JSON'),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 12, 20, bottomInset + 24),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            const SakuSheetHandle(),
+            const SizedBox(height: 16),
+            Text(
+              'Restore Data dari JSON',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Data sekarang akan diganti dengan isi backup JSON yang valid.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _pasteClipboard,
+                icon: const Icon(Icons.content_paste_rounded, size: 16),
+                label: const Text('Tempel dari Clipboard'),
+              ),
+            ),
+            TextField(
+              controller: _jsonController,
+              maxLines: 6,
+              style: const TextStyle(fontSize: 12),
+              decoration: const InputDecoration(
+                hintText: '{"app": "saku_pro", ...}',
+              ),
+            ),
+            if (_error != null) ...<Widget>[
+              const SizedBox(height: 8),
               Text(
-                'Data saat ini akan digantikan oleh isi backup JSON yang valid.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: _pasteClipboard,
-                  icon: const Icon(Icons.content_paste_rounded, size: 16),
-                  label: const Text('Tempel dari Clipboard'),
+                _error!,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: saku.expense,
                 ),
               ),
-              TextField(
-                controller: _jsonController,
-                maxLines: 6,
-                style: const TextStyle(fontSize: 12),
-                decoration: const InputDecoration(
-                  hintText: '{"app": "saku_pro", ...}',
+            ],
+            const SizedBox(height: 18),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isRestoring
+                        ? null
+                        : () => Navigator.of(context).pop(false),
+                    child: const Text('Batal'),
+                  ),
                 ),
-              ),
-              if (_error != null) ...<Widget>[
-                const SizedBox(height: 8),
-                Text(
-                  _error!,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: saku.expense,
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton(
+                    onPressed: _isRestoring ? null : _restore,
+                    child: Text(
+                      _isRestoring ? 'Memulihkan...' : 'Pulihkan Sekarang',
+                    ),
                   ),
                 ),
               ],
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: _isRestoring ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Batal'),
-        ),
-        FilledButton(
-          onPressed: _isRestoring ? null : _restore,
-          child: const Text('Pulihkan Sekarang'),
-        ),
-      ],
     );
   }
 }

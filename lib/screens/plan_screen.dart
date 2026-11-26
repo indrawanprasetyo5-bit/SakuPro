@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../services/finance_controller.dart';
@@ -36,8 +37,8 @@ class PlanScreen extends StatelessWidget {
             ),
             IconButton(
               tooltip: context.isDarkMode
-                  ? 'Beralih ke Mode Terang'
-                  : 'Beralih ke Mode Gelap',
+                  ? 'Pindah ke Mode Terang'
+                  : 'Pindah ke Mode Gelap',
               onPressed: controller.toggleThemeMode,
               icon: Icon(
                 context.isDarkMode
@@ -49,19 +50,20 @@ class PlanScreen extends StatelessWidget {
             const SizedBox(width: 8),
           ],
           bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(46),
+            preferredSize: const Size.fromHeight(48),
             child: Container(
               decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: saku.border)),
+                border: Border(bottom: BorderSide(color: saku.border, width: 1)),
               ),
               child: TabBar(
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
+                onTap: (_) => HapticFeedback.selectionClick(),
                 labelColor: saku.brandInteractive,
                 unselectedLabelColor: saku.textMuted,
                 indicatorColor: saku.brandInteractive,
-                indicatorWeight: 2.6,
+                indicatorWeight: 2.5,
                 dividerColor: Colors.transparent,
                 labelStyle: const TextStyle(
                   fontSize: 13.5,
@@ -69,7 +71,7 @@ class PlanScreen extends StatelessWidget {
                 ),
                 unselectedLabelStyle: const TextStyle(
                   fontSize: 13.5,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                 ),
                 tabs: const <Widget>[
                   Tab(text: 'Budget'),

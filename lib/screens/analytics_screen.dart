@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../services/export_backup_service.dart';
@@ -79,6 +80,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     if (_isExportingExcel) {
       return;
     }
+    HapticFeedback.lightImpact();
     setState(() => _isExportingExcel = true);
     try {
       final ctrl = widget.controller;
@@ -98,7 +100,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal mengekspor Excel: $e')),
+          SnackBar(content: Text('Gagal ekspor Excel: $e')),
         );
       }
     } finally {
@@ -132,11 +134,23 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               color: saku.textPrimary,
             ),
           ),
+          IconButton(
+            tooltip: context.isDarkMode
+                ? 'Pindah ke Mode Terang'
+                : 'Pindah ke Mode Gelap',
+            onPressed: ctrl.toggleThemeMode,
+            icon: Icon(
+              context.isDarkMode
+                  ? Icons.light_mode_outlined
+                  : Icons.dark_mode_outlined,
+              color: saku.textPrimary,
+            ),
+          ),
           const SizedBox(width: 8),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 108),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
         children: <Widget>[
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -146,22 +160,31 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     m.year == activeMonth.year && m.month == activeMonth.month;
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(
-                      _chipLabel(m),
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontFeatures: AppTheme.tabularNums,
+                  child: TactilePressScale(
+                    child: ChoiceChip(
+                      label: Text(
+                        _chipLabel(m),
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: isSelected
+                              ? saku.brandInteractive
+                              : saku.textPrimary,
+                          fontFeatures: AppTheme.tabularNums,
+                        ),
                       ),
+                      selected: isSelected,
+                      onSelected: (_) {
+                        HapticFeedback.selectionClick();
+                        setState(() => _selectedMonth = m);
+                      },
                     ),
-                    selected: isSelected,
-                    onSelected: (_) => setState(() => _selectedMonth = m),
                   ),
                 );
               }).toList(),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           _CashflowComparisonCard(
             periodTitle: _fullMonthLabel(activeMonth),
             report: report,
@@ -169,28 +192,24 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             isExportingExcel: _isExportingExcel,
             onExportExcel: () => _exportExcel(report),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           _InsightsCard(insights: report.insights),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           _CategoryChartCard(
             report: report,
             hideBalance: hidden,
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 24),
           Text(
             'Pengaturan, Privasi & Backup',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 10),
           SettingsSectionPanel(controller: ctrl),
-          const SizedBox(height: 16),
-          Container(
+          const SizedBox(height: 14),
+          LuxurySurfaceCard(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: saku.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: saku.border),
-            ),
+            radius: SakuRadius.md,
             child: Row(
               children: <Widget>[
                 Icon(
@@ -202,8 +221,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 Expanded(
                   child: Text(
                     ctrl.isUsingInMemory
-                        ? 'Mode penyimpanan: In-Memory Preview (${ctrl.wallets.length} dompet · ${ctrl.transactions.length} transaksi)'
-                        : 'Mode penyimpanan: SQLite Lokal Offline (${ctrl.wallets.length} dompet · ${ctrl.transactions.length} transaksi)',
+                        ? 'Penyimpanan: Preview Memori (${ctrl.wallets.length} dompet · ${ctrl.transactions.length} transaksi)'
+                        : 'Penyimpanan: SQLite Offline di HP (${ctrl.wallets.length} dompet · ${ctrl.transactions.length} transaksi)',
                     style: TextStyle(
                       fontSize: 12.5,
                       color: saku.textSecondary,
@@ -243,13 +262,9 @@ class _CashflowComparisonCard extends StatelessWidget {
     final expRatio = maxVal <= 0 ? 0.0 : report.totalExpense / maxVal;
     final net = report.totalIncome - report.totalExpense;
 
-    return Container(
+    return LuxurySurfaceCard(
+      radius: SakuRadius.lg,
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: saku.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: saku.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -266,59 +281,70 @@ class _CashflowComparisonCard extends StatelessWidget {
                     'Arus Kas · $periodTitle',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Selisih bersih: ${IdrFormat.currency(net, hidden: hideBalance, signed: true)}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: net >= 0 ? saku.income : saku.expense,
-                      fontFeatures: AppTheme.tabularNums,
-                    ),
+                  const SizedBox(height: 3),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        'Selisih ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: saku.textMuted,
+                        ),
+                      ),
+                      AnimatedCurrencyText(
+                        amount: net,
+                        hidden: hideBalance,
+                        signed: true,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: net >= 0 ? saku.income : saku.expense,
+                          fontFeatures: AppTheme.tabularNums,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              FilledButton.tonalIcon(
-                style: ButtonStyle(
-                  backgroundColor: WidgetStatePropertyAll<Color>(
-                    saku.brandSoft,
+              TactilePressScale(
+                child: FilledButton.tonalIcon(
+                  style: ButtonStyle(
+                    backgroundColor: WidgetStatePropertyAll<Color>(
+                      saku.brandSoft,
+                    ),
+                    foregroundColor: WidgetStatePropertyAll<Color>(
+                      saku.brandInteractive,
+                    ),
                   ),
-                  foregroundColor: WidgetStatePropertyAll<Color>(
-                    saku.brandInteractive,
+                  onPressed: isExportingExcel ? null : onExportExcel,
+                  icon: Icon(
+                    isExportingExcel
+                        ? Icons.hourglass_top_rounded
+                        : Icons.table_view_outlined,
+                    size: 17,
+                  ),
+                  label: Text(
+                    isExportingExcel ? 'Menyiapkan...' : 'Export Excel (.xlsx)',
                   ),
                 ),
-                onPressed: isExportingExcel ? null : onExportExcel,
-                icon: isExportingExcel
-                    ? SizedBox(
-                        width: 15,
-                        height: 15,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: saku.brandInteractive,
-                        ),
-                      )
-                    : const Icon(Icons.table_view_outlined, size: 17),
-                label: const Text('Export Excel (.xlsx)'),
               ),
             ],
           ),
           const SizedBox(height: 16),
           _ComparisonBarRow(
-            label: 'Pemasukan',
-            amountText: IdrFormat.currency(
-              report.totalIncome,
-              hidden: hideBalance,
-            ),
+            label: 'Uang Masuk',
+            amount: report.totalIncome,
+            hidden: hideBalance,
             ratio: incRatio,
             color: saku.income,
           ),
           const SizedBox(height: 12),
           _ComparisonBarRow(
-            label: 'Pengeluaran',
-            amountText: IdrFormat.currency(
-              report.totalExpense,
-              hidden: hideBalance,
-            ),
+            label: 'Uang Keluar',
+            amount: report.totalExpense,
+            hidden: hideBalance,
             ratio: expRatio,
             color: saku.expense,
           ),
@@ -331,13 +357,15 @@ class _CashflowComparisonCard extends StatelessWidget {
 class _ComparisonBarRow extends StatelessWidget {
   const _ComparisonBarRow({
     required this.label,
-    required this.amountText,
+    required this.amount,
+    required this.hidden,
     required this.ratio,
     required this.color,
   });
 
   final String label;
-  final String amountText;
+  final int amount;
+  final bool hidden;
   final double ratio;
   final Color color;
 
@@ -358,8 +386,9 @@ class _ComparisonBarRow extends StatelessWidget {
                 color: saku.textSecondary,
               ),
             ),
-            Text(
-              amountText,
+            AnimatedCurrencyText(
+              amount: amount,
+              hidden: hidden,
               style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w700,
@@ -370,7 +399,7 @@ class _ComparisonBarRow extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 6),
-        SmoothProgressBar(value: ratio, color: color, height: 9),
+        SmoothProgressBar(value: ratio, color: color, height: 8),
       ],
     );
   }
@@ -384,13 +413,9 @@ class _InsightsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final saku = context.saku;
-    return Container(
+    return LuxurySurfaceCard(
+      radius: SakuRadius.lg,
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: saku.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: saku.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -459,19 +484,16 @@ class _CategoryChartCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final saku = context.saku;
     final slices = report.categorySlices;
+    final disableAnim = MediaQuery.disableAnimationsOf(context);
 
-    return Container(
+    return LuxurySurfaceCard(
+      radius: SakuRadius.lg,
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: saku.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: saku.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'Distribusi Pengeluaran per Kategori',
+            'Pengeluaran per Kategori',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 16),
@@ -479,7 +501,7 @@ class _CategoryChartCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
-                'Belum ada transaksi pengeluaran pada periode ini.',
+                'Belum ada pengeluaran di bulan ini.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             )
@@ -491,12 +513,28 @@ class _CategoryChartCard extends StatelessWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: <Widget>[
-                    CustomPaint(
-                      size: const Size(184, 184),
-                      painter: _CategoryDonutPainter(
-                        slices: slices,
-                        trackColor: saku.surfaceMuted,
+                    TweenAnimationBuilder<double>(
+                      key: ValueKey<String>(
+                        '${report.month.year}-${report.month.month}-${report.totalExpense}',
                       ),
+                      tween: Tween<double>(
+                        begin: disableAnim ? 1.0 : 0.0,
+                        end: 1.0,
+                      ),
+                      duration: disableAnim
+                          ? Duration.zero
+                          : const Duration(milliseconds: 520),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, progress, _) {
+                        return CustomPaint(
+                          size: const Size(184, 184),
+                          painter: _CategoryDonutPainter(
+                            slices: slices,
+                            trackColor: saku.surfaceElevated,
+                            progress: progress,
+                          ),
+                        );
+                      },
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -506,7 +544,7 @@ class _CategoryChartCard extends StatelessWidget {
                           Text(
                             'Total Keluar',
                             style: TextStyle(
-                              fontSize: 11.5,
+                              fontSize: 12,
                               color: saku.textMuted,
                             ),
                           ),
@@ -587,7 +625,7 @@ class _CategorySliceRow extends StatelessWidget {
                   Text(
                     '${slice.count} transaksi · $pct%',
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 12,
                       color: saku.textMuted,
                       fontFeatures: AppTheme.tabularNums,
                     ),
@@ -607,14 +645,10 @@ class _CategorySliceRow extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: slice.share.clamp(0.0, 1.0),
-            minHeight: 6,
-            backgroundColor: saku.surfaceMuted,
-            valueColor: AlwaysStoppedAnimation<Color>(slice.color),
-          ),
+        SmoothProgressBar(
+          value: slice.share.clamp(0.0, 1.0),
+          color: slice.color,
+          height: 6,
         ),
       ],
     );
@@ -625,14 +659,16 @@ class _CategoryDonutPainter extends CustomPainter {
   const _CategoryDonutPainter({
     required this.slices,
     required this.trackColor,
+    required this.progress,
   });
 
   final List<CategorySpendSlice> slices;
   final Color trackColor;
+  final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const strokeWidth = 22.0;
+    const strokeWidth = 20.0;
     final center = Offset(size.width / 2, size.height / 2);
     final radius = (math.min(size.width, size.height) - strokeWidth) / 2;
     final rect = Rect.fromCircle(center: center, radius: radius);
@@ -643,7 +679,7 @@ class _CategoryDonutPainter extends CustomPainter {
       ..color = trackColor;
     canvas.drawCircle(center, radius, trackPaint);
 
-    if (slices.isEmpty) {
+    if (slices.isEmpty || progress <= 0.0) {
       return;
     }
 
@@ -651,8 +687,8 @@ class _CategoryDonutPainter extends CustomPainter {
     final gapRadians = slices.length > 1 ? 0.035 : 0.0;
 
     for (final slice in slices) {
-      final fullSweep = slice.share * 2 * math.pi;
-      final drawSweep = math.max(0.02, fullSweep - gapRadians);
+      final fullSweep = slice.share * 2 * math.pi * progress;
+      final drawSweep = math.max(0.02 * progress, fullSweep - gapRadians);
       final paint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth
@@ -665,6 +701,8 @@ class _CategoryDonutPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CategoryDonutPainter oldDelegate) {
-    return oldDelegate.slices != slices || oldDelegate.trackColor != trackColor;
+    return oldDelegate.slices != slices ||
+        oldDelegate.trackColor != trackColor ||
+        oldDelegate.progress != progress;
   }
 }

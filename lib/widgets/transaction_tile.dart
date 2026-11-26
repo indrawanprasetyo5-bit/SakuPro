@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -16,12 +17,14 @@ class TransactionTile extends StatelessWidget {
     required this.controller,
     required this.onEdit,
     required this.onDelete,
+    this.onQuickDelete,
   });
 
   final TransactionModel transaction;
   final FinanceController controller;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onQuickDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -67,11 +70,14 @@ class TransactionTile extends StatelessWidget {
 
     final dateStr = DateFormat('dd MMM').format(transaction.transactionDate);
 
-    return Material(
+    final rowContent = Material(
       color: saku.surface,
       child: InkWell(
-        onTap: onEdit,
-        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onEdit();
+        },
+        borderRadius: BorderRadius.circular(SakuRadius.md),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
@@ -80,13 +86,13 @@ class TransactionTile extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: <Widget>[
                   Container(
-                    width: 42,
-                    height: 42,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       color: meta.color.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(11),
                     ),
-                    child: Icon(meta.icon, size: 20, color: meta.color),
+                    child: Icon(meta.icon, size: 19, color: meta.color),
                   ),
                   if (fromWallet != null)
                     Positioned(
@@ -99,14 +105,14 @@ class TransactionTile extends StatelessWidget {
                         ),
                         child: WalletBrandAvatar.fromWallet(
                           fromWallet,
-                          size: 19,
+                          size: 18,
                           borderRadius: 5,
                         ),
                       ),
                     ),
                 ],
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 13),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,7 +145,7 @@ class TransactionTile extends StatelessWidget {
                     amountText,
                     style: TextStyle(
                       fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       color: amountColor,
                       fontFeatures: AppTheme.tabularNums,
                     ),
@@ -148,7 +154,7 @@ class TransactionTile extends StatelessWidget {
                     Text(
                       'Transfer',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: saku.transfer,
                       ),
@@ -177,7 +183,7 @@ class TransactionTile extends StatelessWidget {
                       children: <Widget>[
                         Icon(Icons.edit_outlined, size: 18),
                         SizedBox(width: 10),
-                        Text('Edit Transaksi'),
+                        Text('Ubah'),
                       ],
                     ),
                   ),
@@ -187,7 +193,7 @@ class TransactionTile extends StatelessWidget {
                       children: <Widget>[
                         Icon(Icons.delete_outline_rounded, size: 18),
                         SizedBox(width: 10),
-                        Text('Hapus Transaksi'),
+                        Text('Hapus'),
                       ],
                     ),
                   ),
@@ -197,6 +203,45 @@ class TransactionTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+
+    if (transaction.id == null) {
+      return rowContent;
+    }
+
+    return Dismissible(
+      key: ValueKey<String>('tx-swipe-${transaction.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        color: saku.expense,
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(Icons.delete_outline_rounded, color: Colors.white, size: 20),
+            SizedBox(width: 6),
+            Text(
+              'Hapus',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+      confirmDismiss: (_) async {
+        HapticFeedback.mediumImpact();
+        if (onQuickDelete != null) {
+          onQuickDelete!();
+          return false;
+        }
+        onDelete();
+        return false;
+      },
+      child: rowContent,
     );
   }
 }

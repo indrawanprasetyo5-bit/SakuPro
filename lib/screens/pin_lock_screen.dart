@@ -5,6 +5,7 @@ import '../services/finance_controller.dart';
 import '../services/security_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import '../widgets/luxury_widgets.dart';
 
 class PinLockScreen extends StatefulWidget {
   const PinLockScreen({super.key, required this.controller});
@@ -58,6 +59,7 @@ class _PinLockScreenState extends State<PinLockScreen> {
     if (_entered.length >= 4) {
       return;
     }
+    HapticFeedback.selectionClick();
     final next = '$_entered$digit';
     setState(() {
       _entered = next;
@@ -67,6 +69,7 @@ class _PinLockScreenState extends State<PinLockScreen> {
     if (next.length == 4) {
       final unlocked = widget.controller.verifyPinAndUnlock(next);
       if (!unlocked && mounted) {
+        HapticFeedback.heavyImpact();
         setState(() {
           _entered = '';
           _errorMessage = 'PIN salah, silakan coba kembali.';
@@ -79,6 +82,7 @@ class _PinLockScreenState extends State<PinLockScreen> {
     if (_entered.isEmpty) {
       return;
     }
+    HapticFeedback.selectionClick();
     setState(() {
       _entered = _entered.substring(0, _entered.length - 1);
       _errorMessage = null;
@@ -120,16 +124,17 @@ class _PinLockScreenState extends State<PinLockScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Container(
-                      width: 58,
-                      height: 58,
+                      width: 60,
+                      height: 60,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0F766E),
-                        borderRadius: BorderRadius.circular(16),
+                        color: saku.surface,
+                        borderRadius: BorderRadius.circular(SakuRadius.lg),
+                        border: Border.all(color: saku.borderStrong, width: 1),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.lock_outline_rounded,
                         size: 28,
-                        color: Colors.white,
+                        color: saku.brandInteractive,
                       ),
                     ),
                     const SizedBox(height: 18),
@@ -139,7 +144,7 @@ class _PinLockScreenState extends State<PinLockScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Masukkan PIN 4 digit untuk membuka catatan keuanganmu.',
+                      'Masukkan PIN 4 digit buat buka catatan keuanganmu.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
@@ -149,10 +154,11 @@ class _PinLockScreenState extends State<PinLockScreen> {
                       children: List<Widget>.generate(4, (index) {
                         final filled = index < _entered.length;
                         return AnimatedContainer(
-                          duration: const Duration(milliseconds: 140),
+                          duration: SakuMotion.fast,
+                          curve: SakuMotion.curveOut,
                           margin: const EdgeInsets.symmetric(horizontal: 9),
-                          width: 16,
-                          height: 16,
+                          width: filled ? 16 : 14,
+                          height: filled ? 16 : 14,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: filled
@@ -161,7 +167,7 @@ class _PinLockScreenState extends State<PinLockScreen> {
                             border: Border.all(
                               color: filled
                                   ? saku.brandInteractive
-                                  : saku.textMuted,
+                                  : saku.borderStrong,
                               width: 2,
                             ),
                           ),
@@ -242,23 +248,26 @@ class _KeypadButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final saku = context.saku;
-    return Material(
-      color: saku.surface,
-      shape: CircleBorder(side: BorderSide(color: saku.border)),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: SizedBox(
-          width: 68,
-          height: 68,
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 23,
-                fontWeight: FontWeight.w700,
-                color: saku.textPrimary,
-                fontFeatures: AppTheme.tabularNums,
+    return TactilePressScale(
+      pressedScale: 0.92,
+      child: Material(
+        color: saku.surface,
+        shape: CircleBorder(side: BorderSide(color: saku.border, width: 1)),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 68,
+            height: 68,
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w700,
+                  color: saku.textPrimary,
+                  fontFeatures: AppTheme.tabularNums,
+                ),
               ),
             ),
           ),
@@ -282,18 +291,21 @@ class _KeypadIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final saku = context.saku;
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: saku.surfaceMuted,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox(
-            width: 68,
-            height: 68,
-            child: Icon(icon, size: 24, color: saku.textPrimary),
+    return TactilePressScale(
+      pressedScale: 0.92,
+      child: Tooltip(
+        message: tooltip,
+        child: Material(
+          color: saku.surfaceElevated,
+          shape: CircleBorder(side: BorderSide(color: saku.border, width: 1)),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox(
+              width: 68,
+              height: 68,
+              child: Icon(icon, size: 24, color: saku.textPrimary),
+            ),
           ),
         ),
       ),

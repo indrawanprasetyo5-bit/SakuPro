@@ -110,7 +110,7 @@ class FinanceController extends ChangeNotifier {
   bool _isLoading = true;
   String? _errorMessage;
 
-  ThemeMode _themeMode = ThemeMode.light;
+  ThemeMode _themeMode = ThemeMode.dark;
   bool _hideBalance = false;
   bool _appLockEnabled = false;
   bool _biometricEnabled = false;

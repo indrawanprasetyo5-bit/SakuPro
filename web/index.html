@@ -1,58 +1,97 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#09090B" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)">
+  <meta name="description" content="SakuProWann: pencatatan keuangan pribadi offline-first dengan anggaran harian, multi-dompet, dan analitik cashflow.">
 
-  <!--
-    Uncomment the tag below to lay the app out underneath the parts of the
-    screen that the device obstructs, such as a display cutout, the rounded
-    corners of the screen, or a home indicator.
-
-    Without it, the browser keeps the app clear of them, and `SafeArea` and
-    `MediaQuery.paddingOf` report no padding. With it, the app covers the whole
-    screen, and it is up to the app to keep its own content out of the way,
-    which is what `SafeArea` is for.
-  -->
-  <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"> -->
-
-  <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="saku_pro">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SakuProWann">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png">
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>saku_pro</title>
+  <title>SakuProWann</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    :root {
+      --saku-bg-dark: #09090B;
+      --saku-surface-dark: #18181B;
+      --saku-elevated-dark: #27272A;
+      --saku-border-dark: rgba(255, 255, 255, 0.08);
+      --saku-text-dark: #FAFAFA;
+      --saku-emerald-dark: #10B981;
+      --saku-coral-dark: #F43F5E;
+      --saku-amber-dark: #F59E0B;
+      --saku-scroll-thumb-dark: #71717A;
+      --saku-scroll-track-dark: #18181B;
+
+      --saku-bg-light: #FAFAFA;
+      --saku-surface-light: #FFFFFF;
+      --saku-elevated-light: #F4F4F5;
+      --saku-border-light: rgba(9, 9, 11, 0.08);
+      --saku-text-light: #09090B;
+      --saku-emerald-light: #047857;
+      --saku-scroll-thumb-light: #52525B;
+      --saku-scroll-track-light: #E4E4E7;
+
+      --saku-bg: var(--saku-bg-dark);
+      --saku-text: var(--saku-text-dark);
+      --saku-accent: var(--saku-emerald-dark);
+      --saku-scroll-thumb: var(--saku-scroll-thumb-dark);
+      --saku-scroll-track: var(--saku-scroll-track-dark);
+
+      color-scheme: dark light;
+      accent-color: var(--saku-accent);
+      scrollbar-color: var(--saku-scroll-thumb) var(--saku-scroll-track);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --saku-bg: var(--saku-bg-light);
+        --saku-text: var(--saku-text-light);
+        --saku-accent: var(--saku-emerald-light);
+        --saku-scroll-thumb: var(--saku-scroll-thumb-light);
+        --saku-scroll-track: var(--saku-scroll-track-light);
+      }
+    }
+
+    @supports (color: light-dark(white, black)) {
+      :root {
+        --saku-bg: light-dark(var(--saku-bg-light), var(--saku-bg-dark));
+        --saku-text: light-dark(var(--saku-text-light), var(--saku-text-dark));
+        --saku-accent: light-dark(var(--saku-emerald-light), var(--saku-emerald-dark));
+        --saku-scroll-thumb: light-dark(var(--saku-scroll-thumb-light), var(--saku-scroll-thumb-dark));
+        --saku-scroll-track: light-dark(var(--saku-scroll-track-light), var(--saku-scroll-track-dark));
+      }
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: var(--saku-bg);
+      color: var(--saku-text);
+      font-variant-numeric: tabular-nums;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection {
+      background-color: rgba(16, 185, 129, 0.28);
+      color: var(--saku-text);
+    }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

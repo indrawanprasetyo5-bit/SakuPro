@@ -804,5 +804,52 @@ void main() {
       expect(fresh.recurringIncomes.any((r) => r.name == 'Gaji Tetap'), isTrue);
       expect(fresh.learnedMerchantCategories.containsKey('gaji november'), isTrue);
     });
+
+    testWidgets('Obsidian Bento Dashboard, Chat Quick-Add Bar, and Budget Bottom Sheet work seamlessly', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(1170, 2532);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final controller = FinanceController(
+        customStore: InMemorySakuStore(),
+        clock: () => DateTime(2026, 11, 26, 14),
+      );
+      await controller.initialize();
+      expect(controller.themeMode, ThemeMode.dark);
+
+      await tester.pumpWidget(SakuProApp(controller: controller));
+      await tester.pumpAndSettle();
+
+      // Hero Safe-to-Spend card and Bento metrics are immediately visible.
+      expect(find.text('Aman Dipakai Hari Ini'), findsOneWidget);
+      expect(find.text('Total Saldo Bersih'), findsOneWidget);
+      expect(find.text('Uang Masuk'), findsOneWidget);
+      expect(find.text('Uang Keluar'), findsOneWidget);
+
+      // Chat-style Quick-Add bar records an expense in one flow without a modal.
+      await tester.tap(find.text('Ketik cepat... kopi 25rb gopay'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'kopi 25rb gopay');
+      await tester.pumpAndSettle();
+      expect(find.text('Ngopi · GoPay'), findsOneWidget);
+      await tester.tap(find.byTooltip('Kirim Transaksi'));
+      await tester.pumpAndSettle();
+      expect(controller.monthlyExpense, 25000);
+
+      // Atur Limit opens swipe-to-dismiss bottom sheet and updates monthly budget.
+      await tester.tap(find.text('Atur Limit'));
+      await tester.pumpAndSettle();
+      expect(find.text('Atur Limit Bulanan'), findsOneWidget);
+      await tester.tap(find.text('Rp 5 jt'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Simpan Limit'));
+      await tester.pumpAndSettle();
+      expect(controller.monthlyBudget, 5000000);
+    });
   });
 }

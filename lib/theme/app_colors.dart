@@ -8,6 +8,7 @@ class SakuColors extends ThemeExtension<SakuColors> {
     required this.surfaceMuted,
     required this.surfaceElevated,
     required this.border,
+    required this.borderStrong,
     required this.textPrimary,
     required this.textSecondary,
     required this.textMuted,
@@ -37,6 +38,7 @@ class SakuColors extends ThemeExtension<SakuColors> {
   final Color surfaceMuted;
   final Color surfaceElevated;
   final Color border;
+  final Color borderStrong;
   final Color textPrimary;
   final Color textSecondary;
   final Color textMuted;
@@ -61,63 +63,67 @@ class SakuColors extends ThemeExtension<SakuColors> {
   final Color cardShadow;
 
   static const SakuColors light = SakuColors(
-    background: Color(0xFFF6F8F7),
+    background: Color(0xFFFAFAFA),
     surface: Color(0xFFFFFFFF),
-    surfaceMuted: Color(0xFFEEF3F1),
+    surfaceMuted: Color(0xFFF4F4F5),
     surfaceElevated: Color(0xFFFFFFFF),
-    border: Color(0xFFE1E8E6),
-    textPrimary: Color(0xFF0A1715),
-    textSecondary: Color(0xFF334744),
-    textMuted: Color(0xFF5D706C),
-    brandPrimary: Color(0xFF0F766E),
-    brandInteractive: Color(0xFF0F766E),
+    border: Color(0x1409090B),
+    borderStrong: Color(0x2409090B),
+    textPrimary: Color(0xFF09090B),
+    textSecondary: Color(0xFF52525B),
+    textMuted: Color(0xFF63636E),
+    brandPrimary: Color(0xFF047857),
+    brandInteractive: Color(0xFF047857),
     brandOnPrimary: Color(0xFFFFFFFF),
-    brandSoft: Color(0xFFD6F5EF),
-    goldAccent: Color(0xFFC59D47),
-    goldSoft: Color(0xFFFCF6E6),
-    heroStart: Color(0xFF082F2E),
-    heroMid: Color(0xFF0E5E58),
-    heroEnd: Color(0xFF072526),
-    heroMutedText: Color(0xFFC7ECE7),
+    brandSoft: Color(0xFFECFDF5),
+    goldAccent: Color(0xFFB45309),
+    goldSoft: Color(0xFFFFFBEB),
+    heroStart: Color(0xFF18181B),
+    heroMid: Color(0xFF121216),
+    heroEnd: Color(0xFF09090B),
+    heroMutedText: Color(0xFFA1A1AA),
     income: Color(0xFF047857),
     incomeSoft: Color(0xFFECFDF5),
-    expense: Color(0xFFBE123C),
+    expense: Color(0xFFE11D48),
     expenseSoft: Color(0xFFFFF1F2),
     warning: Color(0xFFB45309),
     warningSoft: Color(0xFFFFFBEB),
-    transfer: Color(0xFF0369A1),
+    transfer: Color(0xFF0284C7),
     transferSoft: Color(0xFFF0F9FF),
-    cardShadow: Color(0x0D0A1715),
+    cardShadow: Color(0x0D09090B),
   );
 
+  // Obsidian Dark tokens: #09090B canvas, #18181B card, #27272A elevated,
+  // 1px rgba(255,255,255,0.08) hairline border, and WCAG AA semantic accents.
   static const SakuColors dark = SakuColors(
-    background: Color(0xFF070C15),
-    surface: Color(0xFF0E1624),
-    surfaceMuted: Color(0xFF162235),
-    surfaceElevated: Color(0xFF131E30),
-    border: Color(0xFF1E2D42),
-    textPrimary: Color(0xFFF3F7F6),
-    textSecondary: Color(0xFFC6D3D1),
-    textMuted: Color(0xFF8FA3A0),
-    brandPrimary: Color(0xFF0F766E),
-    brandInteractive: Color(0xFF2DD4BF),
-    brandOnPrimary: Color(0xFFFFFFFF),
-    brandSoft: Color(0xFF123B38),
-    goldAccent: Color(0xFFDFB969),
-    goldSoft: Color(0xFF2A2315),
-    heroStart: Color(0xFF083534),
-    heroMid: Color(0xFF0F6B64),
-    heroEnd: Color(0xFF061F22),
-    heroMutedText: Color(0xFFC7ECE7),
-    income: Color(0xFF34D399),
-    incomeSoft: Color(0xFF07382B),
-    expense: Color(0xFFFB7185),
-    expenseSoft: Color(0xFF3E0B18),
-    warning: Color(0xFFFBBF24),
-    warningSoft: Color(0xFF3A1C07),
+    background: Color(0xFF09090B),
+    surface: Color(0xFF18181B),
+    surfaceMuted: Color(0xFF27272A),
+    surfaceElevated: Color(0xFF27272A),
+    border: Color(0x14FFFFFF),
+    borderStrong: Color(0x24FFFFFF),
+    textPrimary: Color(0xFFFAFAFA),
+    textSecondary: Color(0xFFA1A1AA),
+    textMuted: Color(0xFF9A9AA6),
+    brandPrimary: Color(0xFF10B981),
+    brandInteractive: Color(0xFF10B981),
+    brandOnPrimary: Color(0xFF09090B),
+    brandSoft: Color(0xFF0B2920),
+    goldAccent: Color(0xFFF59E0B),
+    goldSoft: Color(0xFF2B1F0A),
+    heroStart: Color(0xFF1E1E24),
+    heroMid: Color(0xFF141418),
+    heroEnd: Color(0xFF0B0B0E),
+    heroMutedText: Color(0xFFA1A1AA),
+    income: Color(0xFF10B981),
+    incomeSoft: Color(0xFF0B2920),
+    expense: Color(0xFFF43F5E),
+    expenseSoft: Color(0xFF240F15),
+    warning: Color(0xFFF59E0B),
+    warningSoft: Color(0xFF2B1F0A),
     transfer: Color(0xFF38BDF8),
-    transferSoft: Color(0xFF0B3552),
-    cardShadow: Color(0x4D000000),
+    transferSoft: Color(0xFF0C2538),
+    cardShadow: Color(0x66000000),
   );
 
   @override
@@ -127,6 +133,7 @@ class SakuColors extends ThemeExtension<SakuColors> {
     Color? surfaceMuted,
     Color? surfaceElevated,
     Color? border,
+    Color? borderStrong,
     Color? textPrimary,
     Color? textSecondary,
     Color? textMuted,
@@ -156,6 +163,7 @@ class SakuColors extends ThemeExtension<SakuColors> {
       surfaceMuted: surfaceMuted ?? this.surfaceMuted,
       surfaceElevated: surfaceElevated ?? this.surfaceElevated,
       border: border ?? this.border,
+      borderStrong: borderStrong ?? this.borderStrong,
       textPrimary: textPrimary ?? this.textPrimary,
       textSecondary: textSecondary ?? this.textSecondary,
       textMuted: textMuted ?? this.textMuted,
@@ -192,6 +200,7 @@ class SakuColors extends ThemeExtension<SakuColors> {
       surfaceMuted: Color.lerp(surfaceMuted, other.surfaceMuted, t)!,
       surfaceElevated: Color.lerp(surfaceElevated, other.surfaceElevated, t)!,
       border: Color.lerp(border, other.border, t)!,
+      borderStrong: Color.lerp(borderStrong, other.borderStrong, t)!,
       textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       textMuted: Color.lerp(textMuted, other.textMuted, t)!,
@@ -220,7 +229,7 @@ class SakuColors extends ThemeExtension<SakuColors> {
 
 extension SakuThemeContext on BuildContext {
   SakuColors get saku =>
-      Theme.of(this).extension<SakuColors>() ?? SakuColors.light;
+      Theme.of(this).extension<SakuColors>() ?? SakuColors.dark;
 
   bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
 }

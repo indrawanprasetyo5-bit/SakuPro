@@ -5,6 +5,7 @@ import '../services/finance_controller.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
+import 'luxury_widgets.dart';
 
 class BudgetDialog extends StatefulWidget {
   const BudgetDialog({super.key, required this.controller});
@@ -15,7 +16,7 @@ class BudgetDialog extends StatefulWidget {
     BuildContext context, {
     required FinanceController controller,
   }) {
-    return showDialog<void>(
+    return showSakuBottomSheet<void>(
       context: context,
       builder: (ctx) => BudgetDialog(controller: controller),
     );
@@ -60,6 +61,7 @@ class _BudgetDialogState extends State<BudgetDialog> {
     if (val <= 0) {
       return;
     }
+    HapticFeedback.lightImpact();
     await widget.controller.setMonthlyBudget(val);
     if (mounted) {
       Navigator.of(context).pop();
@@ -70,19 +72,43 @@ class _BudgetDialogState extends State<BudgetDialog> {
   Widget build(BuildContext context) {
     final saku = context.saku;
     final currentVal = _parsed();
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
-    return AlertDialog(
-      title: const Text('Atur Budget Bulanan'),
-      content: SingleChildScrollView(
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 12, 20, bottomInset + 24),
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Text(
-              'Digunakan untuk menghitung batas Aman Jajan Hari Ini secara otomatis.',
-              style: Theme.of(context).textTheme.bodyMedium,
+            const SakuSheetHandle(),
+            const SizedBox(height: 16),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Atur Limit Bulanan',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Dipakai buat hitung jatah Aman Dipakai Hari Ini secara otomatis.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Tutup',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Icon(Icons.close_rounded, color: saku.textSecondary),
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 18),
             TextField(
               controller: _controller,
               autofocus: true,
@@ -91,64 +117,84 @@ class _BudgetDialogState extends State<BudgetDialog> {
                 FilteringTextInputFormatter.digitsOnly,
               ],
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+                color: saku.textPrimary,
                 fontFeatures: AppTheme.tabularNums,
               ),
               onChanged: (_) => setState(() {}),
               onSubmitted: (_) => _submit(),
               decoration: const InputDecoration(
                 prefixText: 'Rp ',
-                labelText: 'Plafon Pengeluaran Bulanan',
+                labelText: 'Batas pengeluaran sebulan',
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Terbaca: ${IdrFormat.currency(currentVal)}',
+              'Terbaca ${IdrFormat.currency(currentVal)}',
               style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
                 color: saku.brandInteractive,
                 fontFeatures: AppTheme.tabularNums,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: _presets.map((preset) {
-                return ActionChip(
-                  label: Text(
-                    IdrFormat.compact(preset),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontFeatures: AppTheme.tabularNums,
+                final selected = currentVal == preset;
+                return TactilePressScale(
+                  child: ChoiceChip(
+                    selected: selected,
+                    label: Text(
+                      IdrFormat.compact(preset),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: selected
+                            ? saku.brandInteractive
+                            : saku.textPrimary,
+                        fontFeatures: AppTheme.tabularNums,
+                      ),
                     ),
+                    onSelected: (_) {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        _controller.text = preset.toString();
+                        _controller.selection = TextSelection.collapsed(
+                          offset: _controller.text.length,
+                        );
+                      });
+                    },
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _controller.text = preset.toString();
-                      _controller.selection = TextSelection.collapsed(
-                        offset: _controller.text.length,
-                      );
-                    });
-                  },
                 );
               }).toList(),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Batal'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton(
+                    onPressed: currentVal > 0 ? _submit : null,
+                    child: const Text('Simpan Limit'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Batal'),
-        ),
-        FilledButton(
-          onPressed: currentVal > 0 ? _submit : null,
-          child: const Text('Simpan Budget'),
-        ),
-      ],
     );
   }
 }

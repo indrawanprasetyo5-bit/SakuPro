@@ -13,6 +13,7 @@ import '../services/notification_bridge_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
+import 'luxury_widgets.dart';
 import 'wallet_brand_avatar.dart';
 
 class AutoCaptureSheet extends StatefulWidget {
@@ -24,10 +25,8 @@ class AutoCaptureSheet extends StatefulWidget {
     BuildContext context, {
     required FinanceController controller,
   }) {
-    return showModalBottomSheet<void>(
+    return showSakuBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
       builder: (ctx) => AutoCaptureSheet(controller: controller),
     );
   }
@@ -225,17 +224,26 @@ class _AutoCaptureSheetState extends State<AutoCaptureSheet>
     var selectedWalletId = wallets.first.id ?? 1;
     var selectedCategory = CategoryCatalog.incomeCategories.first.name;
 
-    final saved = await showDialog<bool>(
+    final saved = await showSakuBottomSheet<bool>(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
-            return AlertDialog(
-              title: const Text('Jadwal Pemasukan Rutin'),
-              content: SingleChildScrollView(
+            final bottomInset = MediaQuery.viewInsetsOf(ctx).bottom;
+            return Padding(
+              padding: EdgeInsets.fromLTRB(20, 12, 20, bottomInset + 24),
+              child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
+                    const SakuSheetHandle(),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Jadwal Pemasukan Rutin',
+                      style: Theme.of(ctx).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 14),
                     TextField(
                       controller: nameCtrl,
                       decoration: const InputDecoration(
@@ -316,25 +324,35 @@ class _AutoCaptureSheetState extends State<AutoCaptureSheet>
                         }
                       },
                     ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(ctx).pop(false),
+                            child: const Text('Batal'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: FilledButton(
+                            onPressed: () {
+                              final amount =
+                                  int.tryParse(amountCtrl.text.trim()) ?? 0;
+                              if (nameCtrl.text.trim().isEmpty || amount <= 0) {
+                                return;
+                              }
+                              Navigator.of(ctx).pop(true);
+                            },
+                            child: const Text('Simpan Jadwal'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  child: const Text('Batal'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final amount = int.tryParse(amountCtrl.text.trim()) ?? 0;
-                    if (nameCtrl.text.trim().isEmpty || amount <= 0) {
-                      return;
-                    }
-                    Navigator.of(ctx).pop(true);
-                  },
-                  child: const Text('Simpan Jadwal'),
-                ),
-              ],
             );
           },
         );

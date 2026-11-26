@@ -12,6 +12,7 @@ import '../services/receipt_ocr_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
+import 'luxury_widgets.dart';
 import 'wallet_brand_avatar.dart';
 
 enum InputEntryMode { smartNlp, manualForm }
@@ -52,7 +53,9 @@ class QuickInputSheet extends StatefulWidget {
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      enableDrag: true,
       useSafeArea: true,
+      sheetAnimationStyle: SakuMotion.sheetStyle,
       builder: (ctx) => QuickInputSheet(
         controller: controller,
         existingTransaction: existingTransaction,
@@ -507,47 +510,81 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
         ? data.reconstructedLines.join('\n')
         : data.rawText;
 
-    showDialog<void>(
+    showSakuBottomSheet<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Teks Hasil Scan Struk'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: SelectableText(
-              previewText,
-              style: TextStyle(
-                fontSize: 12.5,
-                height: 1.45,
-                fontFeatures: AppTheme.tabularNums,
+      builder: (ctx) {
+        final saku = ctx.saku;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              const SakuSheetHandle(),
+              const SizedBox(height: 16),
+              Text(
+                'Teks Hasil Scan Struk',
+                style: Theme.of(ctx).textTheme.headlineSmall,
               ),
-            ),
-          ),
-        ),
-        actions: <Widget>[
-          TextButton.icon(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: previewText));
-              if (ctx.mounted) {
-                Navigator.of(ctx).pop();
-              }
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Teks hasil scan disalin ke clipboard.'),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 340),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: saku.surfaceElevated,
+                    borderRadius: BorderRadius.circular(SakuRadius.md),
+                    border: Border.all(color: saku.border, width: 1),
                   ),
-                );
-              }
-            },
-            icon: const Icon(Icons.copy_rounded, size: 16),
-            label: const Text('Salin Teks'),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      previewText,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        height: 1.48,
+                        fontFeatures: AppTheme.tabularNums,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: previewText),
+                        );
+                        if (ctx.mounted) {
+                          Navigator.of(ctx).pop();
+                        }
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Teks scan disalin ke clipboard.'),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.copy_rounded, size: 16),
+                      label: const Text('Salin Teks'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: const Text('Tutup'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Tutup'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

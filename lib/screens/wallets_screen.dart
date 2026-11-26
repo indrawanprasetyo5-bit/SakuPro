@@ -40,8 +40,8 @@ class WalletsScreen extends StatelessWidget {
           ),
           IconButton(
             tooltip: context.isDarkMode
-                ? 'Beralih ke Mode Terang'
-                : 'Beralih ke Mode Gelap',
+                ? 'Pindah ke Mode Terang'
+                : 'Pindah ke Mode Gelap',
             onPressed: controller.toggleThemeMode,
             icon: Icon(
               context.isDarkMode
@@ -54,51 +54,34 @@ class WalletsScreen extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 112),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
         children: <Widget>[
           LuxurySurfaceCard(
+            radius: SakuRadius.xl,
             padding: const EdgeInsets.all(20),
+            borderColor: saku.borderStrong,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: saku.brandInteractive,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Total Seluruh Dompet',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: saku.textMuted,
-                        ),
-                      ),
-                    ),
-                  ],
+                Text(
+                  'Total Semua Dompet',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: saku.textSecondary,
+                  ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    IdrFormat.currency(
-                      controller.totalAllWallets,
-                      hidden: hidden,
-                    ),
+                  child: AnimatedCurrencyText(
+                    amount: controller.totalAllWallets,
+                    hidden: hidden,
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 30,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -0.7,
+                      letterSpacing: -0.8,
                       color: saku.textPrimary,
                       fontFeatures: AppTheme.tabularNums,
                     ),
@@ -108,78 +91,87 @@ class WalletsScreen extends StatelessWidget {
                     controller.netWorth) ...<Widget>[
                   const SizedBox(height: 4),
                   Text(
-                    'Saldo bersih aktif: ${IdrFormat.currency(controller.netWorth, hidden: hidden)}',
+                    'Saldo bersih aktif ${IdrFormat.currency(controller.netWorth, hidden: hidden)}',
                     style: TextStyle(
                       fontSize: 12.5,
-                      color: saku.textSecondary,
+                      color: saku.textMuted,
                       fontFeatures: AppTheme.tabularNums,
                     ),
                   ),
                 ],
                 const SizedBox(height: 16),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+                Row(
                   children: <Widget>[
-                    FilledButton.icon(
-                      onPressed: wallets.length >= 2
-                          ? () async {
-                              final done = await QuickInputSheet.show(
-                                context,
-                                controller: controller,
-                                initialMode: InputEntryMode.manualForm,
-                                initialKind: TransactionKind.transfer,
-                              );
-                              if (done == true && context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Transfer antar dompet berhasil dicatat.',
-                                    ),
-                                  ),
-                                );
-                              }
-                            }
-                          : null,
-                      icon: const Icon(Icons.swap_horiz_rounded, size: 19),
-                      label: const Text('Transfer Dompet'),
+                    Expanded(
+                      child: TactilePressScale(
+                        child: FilledButton.icon(
+                          onPressed: wallets.length >= 2
+                              ? () async {
+                                  final done = await QuickInputSheet.show(
+                                    context,
+                                    controller: controller,
+                                    initialMode: InputEntryMode.manualForm,
+                                    initialKind: TransactionKind.transfer,
+                                  );
+                                  if (done == true && context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Transfer antar dompet dicatat.',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                }
+                              : null,
+                          icon: const Icon(Icons.swap_horiz_rounded, size: 19),
+                          label: const Text('Transfer'),
+                        ),
+                      ),
                     ),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final added = await WalletFormSheet.show(
-                          context,
-                          controller: controller,
-                        );
-                        if (added == true && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Dompet baru berhasil ditambahkan.'),
-                            ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.add_rounded, size: 19),
-                      label: const Text('Dompet Baru'),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TactilePressScale(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final added = await WalletFormSheet.show(
+                              context,
+                              controller: controller,
+                            );
+                            if (added == true && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Dompet baru siap dipakai.'),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.add_rounded, size: 19),
+                          label: const Text('Tambah'),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 22),
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 4,
+          const SizedBox(height: 20),
+          Row(
             children: <Widget>[
-              Text(
-                'Daftar Dompet (${wallets.length})',
-                style: Theme.of(context).textTheme.titleLarge,
+              Expanded(
+                child: Text(
+                  'Daftar Dompet (${wallets.length})',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
               ),
               Text(
-                'Ketuk dompet untuk edit',
-                style: Theme.of(context).textTheme.labelSmall,
+                'Ketuk buat edit',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: saku.textMuted,
+                ),
               ),
             ],
           ),
@@ -196,7 +188,7 @@ class WalletsScreen extends StatelessWidget {
                 );
                 if (changed == true && context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Data dompet diperbarui.')),
+                    const SnackBar(content: Text('Data dompet disimpan.')),
                   );
                 }
               },
@@ -211,14 +203,14 @@ class WalletsScreen extends StatelessWidget {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'Transaksi pada dompet ${wallet.name} tersimpan.',
+                        'Transaksi di ${wallet.name} tersimpan.',
                       ),
                     ),
                   );
                 }
               },
             ),
-            const SizedBox(height: 11),
+            const SizedBox(height: 10),
           ],
         ],
       ),
@@ -242,27 +234,15 @@ class _WalletCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final saku = context.saku;
-    final isDark = context.isDarkMode;
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: isDark
-            ? null
-            : <BoxShadow>[
-                BoxShadow(
-                  color: saku.cardShadow,
-                  offset: const Offset(0, 3),
-                  blurRadius: 12,
-                ),
-              ],
-      ),
+    return TactilePressScale(
+      pressedScale: 0.98,
       child: Material(
         color: saku.surface,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: saku.border),
+          borderRadius: BorderRadius.circular(SakuRadius.lg),
+          side: BorderSide(color: saku.border, width: 1),
         ),
         child: InkWell(
           onTap: () {
@@ -270,11 +250,11 @@ class _WalletCard extends StatelessWidget {
             onEdit();
           },
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
             child: Row(
               children: <Widget>[
-                WalletBrandAvatar.fromWallet(wallet, size: 48),
-                const SizedBox(width: 14),
+                WalletBrandAvatar.fromWallet(wallet, size: 46),
+                const SizedBox(width: 13),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,17 +273,17 @@ class _WalletCard extends StatelessWidget {
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
+                                horizontal: 7,
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: saku.surfaceMuted,
-                                borderRadius: BorderRadius.circular(5),
+                                color: saku.surfaceElevated,
+                                borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 'Terpisah',
                                 style: TextStyle(
-                                  fontSize: 10.5,
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.w700,
                                   color: saku.textMuted,
                                 ),
@@ -312,11 +292,11 @@ class _WalletCard extends StatelessWidget {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 2),
                       Text(
                         wallet.kind.label,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                           color: saku.textMuted,
                         ),
@@ -327,8 +307,9 @@ class _WalletCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: <Widget>[
-                    Text(
-                      IdrFormat.currency(wallet.balance, hidden: hideBalance),
+                    AnimatedCurrencyText(
+                      amount: wallet.balance,
+                      hidden: hideBalance,
                       style: TextStyle(
                         fontSize: 15.5,
                         fontWeight: FontWeight.w800,
@@ -341,9 +322,9 @@ class _WalletCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Edit saldo',
+                      'Atur saldo',
                       style: TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: saku.brandInteractive,
                       ),
@@ -353,7 +334,10 @@ class _WalletCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 IconButton(
                   tooltip: 'Catat transaksi di ${wallet.name}',
-                  onPressed: onQuickRecord,
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    onQuickRecord();
+                  },
                   icon: Icon(
                     Icons.add_circle_outline_rounded,
                     color: saku.textSecondary,
