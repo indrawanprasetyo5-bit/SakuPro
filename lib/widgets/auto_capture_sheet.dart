@@ -13,6 +13,7 @@ import '../services/notification_bridge_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
+import 'wallet_brand_avatar.dart';
 
 class AutoCaptureSheet extends StatefulWidget {
   const AutoCaptureSheet({super.key, required this.controller});
@@ -731,9 +732,11 @@ class _AutoCaptureSheetState extends State<AutoCaptureSheet>
                     );
                     return FilterChip(
                       selected: selected,
-                      avatar: CircleAvatar(
-                        backgroundColor: Color(src.walletColor),
-                        radius: 8,
+                      avatar: WalletBrandAvatar(
+                        name: src.walletName,
+                        kind: src.walletKind,
+                        size: 22,
+                        borderRadius: 6,
                       ),
                       label: Text(
                         src.name,
@@ -759,6 +762,12 @@ class _AutoCaptureSheetState extends State<AutoCaptureSheet>
                     );
                     return FilterChip(
                       selected: selected,
+                      avatar: WalletBrandAvatar(
+                        name: src.walletName,
+                        kind: src.walletKind,
+                        size: 20,
+                        borderRadius: 5,
+                      ),
                       label: Text(src.name),
                       onSelected: (v) =>
                           ctrl.toggleNotificationSource(src.id, v),

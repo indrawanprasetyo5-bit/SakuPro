@@ -7,6 +7,7 @@ import '../services/finance_controller.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
+import 'wallet_brand_avatar.dart';
 
 class TransactionTile extends StatelessWidget {
   const TransactionTile({
@@ -75,16 +76,37 @@ class TransactionTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: <Widget>[
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: meta.color.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(meta.icon, size: 20, color: meta.color),
+              Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: meta.color.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(meta.icon, size: 20, color: meta.color),
+                  ),
+                  if (fromWallet != null)
+                    Positioned(
+                      right: -4,
+                      bottom: -4,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(7),
+                          border: Border.all(color: saku.surface, width: 1.5),
+                        ),
+                        child: WalletBrandAvatar.fromWallet(
+                          fromWallet,
+                          size: 19,
+                          borderRadius: 5,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

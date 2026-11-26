@@ -12,6 +12,7 @@ import '../services/receipt_ocr_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
+import 'wallet_brand_avatar.dart';
 
 enum InputEntryMode { smartNlp, manualForm }
 
@@ -1043,6 +1044,11 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
                       return Padding(
                         padding: const EdgeInsets.only(right: 6),
                         child: ChoiceChip(
+                          avatar: WalletBrandAvatar.fromWallet(
+                            w,
+                            size: 20,
+                            borderRadius: 6,
+                          ),
                           label: Text(w.name),
                           selected: active,
                           onSelected: (_) => setState(() {
@@ -1573,13 +1579,10 @@ class _WalletChipSelector extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: w.color,
-                          shape: BoxShape.circle,
-                        ),
+                      WalletBrandAvatar.fromWallet(
+                        w,
+                        size: 28,
+                        borderRadius: 8,
                       ),
                       const SizedBox(width: 8),
                       Column(

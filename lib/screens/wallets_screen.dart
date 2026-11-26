@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
 import '../widgets/luxury_widgets.dart';
 import '../widgets/quick_input_sheet.dart';
+import '../widgets/wallet_brand_avatar.dart';
 import '../widgets/wallet_form_sheet.dart';
 
 class WalletsScreen extends StatelessWidget {
@@ -272,25 +273,7 @@ class _WalletCard extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: <Widget>[
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: <Color>[
-                        wallet.color.withValues(alpha: 0.22),
-                        wallet.color.withValues(alpha: 0.08),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: wallet.color.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  child: Icon(wallet.icon, color: wallet.color, size: 22),
-                ),
+                WalletBrandAvatar.fromWallet(wallet, size: 48),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(

@@ -7,6 +7,7 @@ import '../services/finance_controller.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
+import 'wallet_brand_avatar.dart';
 
 class WalletFormSheet extends StatefulWidget {
   const WalletFormSheet({
@@ -202,15 +203,65 @@ class _WalletFormSheetState extends State<WalletFormSheet> {
               ],
             ),
             const SizedBox(height: 14),
-            TextField(
-              controller: _nameController,
-              textCapitalization: TextCapitalization.words,
-              onChanged: (_) => setState(() => _errorText = null),
-              decoration: const InputDecoration(
-                labelText: 'Nama Dompet',
-                hintText: 'Mis. Mandiri, Jago, ShopeePay, OVO',
-              ),
+            Row(
+              children: <Widget>[
+                WalletBrandAvatar(
+                  name: _nameController.text,
+                  kind: _kind,
+                  fallbackColor: Color(_colorValue),
+                  fallbackIcon: WalletPalette.iconFor(_iconKey),
+                  size: 52,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _nameController,
+                    textCapitalization: TextCapitalization.words,
+                    onChanged: (_) => setState(() => _errorText = null),
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Dompet',
+                      hintText: 'Mis. SeaBank, DANA, BCA, Bank Jago',
+                    ),
+                  ),
+                ),
+              ],
             ),
+            if (!_isEditing) ...<Widget>[
+              const SizedBox(height: 10),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: WalletBrandCatalog.quickPresets.map((brand) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: ActionChip(
+                        avatar: WalletBrandAvatar(
+                          name: brand.displayName,
+                          kind: brand.walletKind,
+                          size: 20,
+                          borderRadius: 6,
+                        ),
+                        label: Text(
+                          brand.displayName,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _nameController.text = brand.displayName;
+                            _kind = brand.walletKind;
+                            _colorValue = brand.primaryColor.toARGB32();
+                            _errorText = null;
+                          });
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             Text('Tipe Dompet', style: Theme.of(context).textTheme.labelLarge),
             const SizedBox(height: 8),
