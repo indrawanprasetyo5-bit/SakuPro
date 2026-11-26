@@ -1,20 +1,20 @@
 # SakuProWann
 
-Aplikasi Android pencatatan keuangan pribadi berbasis Flutter yang berjalan 100% offline-first (SQLite lokal) dengan dukungan Light & Dark Mode.
+Aplikasi Android pencatatan keuangan pribadi berbasis Flutter yang berjalan 100% offline-first (SQLite lokal) dengan tema Obsidian Dark & Light Mode.
 
-## Fitur
+## Fitur Utama
 
-- **Auto-Catat QRIS & Bank (Offline)**: Membaca notifikasi transaksi lokal dari SeaBank, DANA, GoPay/Gojek, Bank Jago, BCA, Mandiri, BRI, OVO, ShopeePay, dan blu tanpa perlu login bank. Dilengkapi filter promo/OTP, anti-duplikat, Auto-Pairing Transfer antar dompet sendiri, Auto-Lunas Tagihan, Auto-Potong Hutang/Piutang, dan Kamus Belajar Merchant pribadi.
-- **Smart Quick Input**: Catat transaksi dalam hitungan detik cukup dengan mengetik kalimat bebas seperti `kopi 22rb gopay`, `bensin 50k cash`, atau `gaji 5jt bca`.
-- **Scan Struk & Share Bukti QRIS (OCR Offline)**: Foto struk belanja atau tekan Bagikan (Share) dari bukti bayar aplikasi bank ke SakuProWann untuk membaca nama toko dan total transaksi secara otomatis menggunakan Google ML Kit di perangkat.
-- **Otomatisasi Rutin & Pengingat Lokal**: Jadwal Gaji rutin, Auto-Catat Tagihan saat jatuh tempo, Auto-Alokasi Tabungan saat gaji masuk, alert budget real-time, pengingat tagihan H-2, Rekap Tutup Bulan, dan Auto-Backup JSON mingguan ke `Download/SakuProWann/`.
-- **Widget Layar Utama & Quick Settings Tile**: Pantau batas Aman Jajan Hari Ini dan saldo bersih langsung dari Home Screen Android, plus tombol cepat `Catat SakuPro` di panel tarik-atas HP.
-- **Perencanaan & Analitik**: Multi-dompet, Budget per kategori, Target Tabungan (Goals), Tagihan Rutin, Hutang & Piutang (+ pengingat WhatsApp), grafik pengeluaran, dan Insight otomatis.
-- **Laporan Excel 5-Sheet & Privasi**: Export laporan bulanan ke `.xlsx` (Ringkasan Eksekutif, Buku Transaksi, Analisa Kategori & Budget, Dompet & Aset, Rencana & Kewajiban dengan rumus Excel dinamis), 1-tap sembunyikan saldo, kunci PIN 4 digit + Biometrik, dan Backup/Restore JSON.
+- **Beranda Bento & Aman Dipakai Hari Ini**: Menampilkan jatah pengeluaran harian yang aman berdasarkan sisa budget dan sisa hari di bulan berjalan, total saldo bersih, arus kas bulanan, dan daftar transaksi terbaru dengan swipe-to-delete + `Urungkan`.
+- **Quick-Add Bar & Preset 1-Ketuk Dinamis**: Catat transaksi langsung dari bar bawah seperti mengirim chat (misalnya `kopi 25rb gopay`, `bensin 50k cash`, atau `gaji 8jt bca`), lengkap dengan 4 chip preset yang otomatis menyesuaikan kebiasaan 30 hari terakhir.
+- **Split Bill / Patungan**: Hitung patungan bagi rata atau nominal khusus per orang. Porsi pribadi langsung masuk pengeluaran, sedangkan porsi teman otomatis tercatat ke daftar Piutang dan siap ditagih lewat WhatsApp.
+- **Scan Struk & Share Resi Bank (OCR Offline)**: Foto struk belanja atau kirim gambar lewat tombol Bagikan (Share) dari bukti transfer Bank Jago, SeaBank, DANA, GoPay, dan BCA untuk membaca nominal serta nama penerima langsung di perangkat menggunakan Google ML Kit.
+- **Otomatisasi Lokal**: Jadwal pemasukan rutin (Auto-Gaji), Auto-Pay tagihan saat jatuh tempo, sisihkan persentase pemasukan otomatis ke target tabungan (Auto-Save Goal), pengingat lokal budget & tagihan, Rekap Tutup Bulan, dan Auto-Backup JSON mingguan ke `Download/SakuProWann/`.
+- **Analitik & Laporan Excel 5-Sheet**: Grafik Tren 6 Bulan, Pola Pengeluaran Harian, Donut Distribusi Kategori, Insight otomatis, dan export laporan bulanan `.xlsx` berformula dinamis (Ringkasan Eksekutif, Buku Transaksi, Analisa Kategori & Budget, Dompet & Aset, Rencana & Kewajiban).
+- **Multi-Dompet, Rencana & Privasi**: Logo dompet lokal (BCA, DANA, SeaBank, GoPay, Bank Jago, Mandiri, BRI, OVO, ShopeePay, blu), Budget, Goals, Tagihan, Hutang & Piutang, sembunyikan saldo 1-ketuk, kunci PIN 4 digit + Biometrik, Widget Home Screen, serta Quick Settings Tile.
 
 ## Tech Stack
 
-- **Framework**: Flutter (Dart) + Kotlin (Android Native Services & AppWidget)
+- **Framework**: Flutter (Dart) + Kotlin (Android Native AppWidget, Quick Settings Tile, MediaStore & Local Reminders)
 - **Database Lokal**: SQLite (`sqflite`)
 - **OCR & Keamanan**: `google_mlkit_text_recognition`, `image_picker`, `local_auth`
 - **Export**: `excel`, `share_plus`
@@ -26,8 +26,8 @@ flutter pub get
 flutter run -d chrome
 ```
 
-Untuk build Android APK:
+Untuk build Android APK per arsitektur (`arm64-v8a` / `armeabi-v7a`):
 
 ```bash
-flutter build apk --release
+flutter build apk --release --split-per-abi
 ```
