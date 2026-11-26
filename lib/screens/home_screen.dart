@@ -56,16 +56,14 @@ class HomeScreen extends StatelessWidget {
 
   Future<void> _handlePullToRefresh(BuildContext context) async {
     HapticFeedback.lightImpact();
-    await controller.refreshNotificationPermission();
+    await controller.refreshPostNotificationPermission();
     final recurring = await controller.runRecurringAutomations();
-    final captured = controller.autoCaptureEnabled
-        ? await controller.drainNativeNotifications()
-        : 0;
-    final totalNew = recurring.totalRecorded + captured;
-    if (context.mounted && totalNew > 0) {
+    if (context.mounted && recurring.totalRecorded > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('$totalNew transaksi otomatis baru sudah tercatat.'),
+          content: Text(
+            '${recurring.totalRecorded} transaksi rutin otomatis tercatat.',
+          ),
         ),
       );
     }
@@ -286,37 +284,12 @@ class HomeScreen extends StatelessWidget {
         ),
         actions: <Widget>[
           IconButton(
-            tooltip: 'Auto-Catat QRIS & Bank',
+            tooltip: 'Pusat Otomatisasi',
             onPressed: () =>
                 AutoCaptureSheet.show(context, controller: controller),
-            icon: Stack(
-              clipBehavior: Clip.none,
-              children: <Widget>[
-                Icon(
-                  controller.autoCaptureEnabled
-                      ? Icons.notifications_active_outlined
-                      : Icons.notifications_none_rounded,
-                  color: controller.autoCaptureEnabled
-                      ? saku.brandInteractive
-                      : saku.textPrimary,
-                ),
-                if (controller.pendingAutoTransactions.isNotEmpty ||
-                    controller.autoCaptureEnabled)
-                  Positioned(
-                    right: -1,
-                    top: -1,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: controller.pendingAutoTransactions.isNotEmpty
-                            ? saku.warning
-                            : saku.income,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-              ],
+            icon: Icon(
+              Icons.event_repeat_rounded,
+              color: saku.textPrimary,
             ),
           ),
           IconButton(
@@ -364,7 +337,7 @@ class HomeScreen extends StatelessWidget {
               actions: <QuickActionSpec>[
                 QuickActionSpec(
                   label: 'Catat',
-                  icon: Icons.bolt_rounded,
+                  icon: Icons.edit_note_rounded,
                   color: saku.brandInteractive,
                   softBg: saku.brandSoft,
                   onTap: () async {
@@ -419,13 +392,6 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
             ),
-            if (controller.pendingAutoTransactions.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 14),
-              PendingAutoCaptureCard(
-                controller: controller,
-                hideBalance: controller.hideBalance,
-              ),
-            ],
             if (controller.activeMonthlyRecap != null) ...<Widget>[
               const SizedBox(height: 14),
               MonthlyClosingRecapCard(
@@ -853,7 +819,7 @@ class _EmptyTransactionsCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  Icons.bolt_rounded,
+                  Icons.receipt_long_outlined,
                   color: saku.brandInteractive,
                   size: 20,
                 ),
@@ -883,7 +849,7 @@ class _EmptyTransactionsCard extends StatelessWidget {
                   controller: controller,
                   initialSmartText: 'kopi 25rb gopay',
                 ),
-                icon: const Icon(Icons.bolt_rounded, size: 18),
+                icon: const Icon(Icons.edit_note_rounded, size: 18),
                 label: const Text('Coba "kopi 25rb gopay"'),
               ),
               OutlinedButton.icon(

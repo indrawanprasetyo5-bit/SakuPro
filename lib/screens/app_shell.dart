@@ -80,7 +80,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _syncIncomingBankNotifications();
+      _syncAutomationsOnResume();
       unawaited(_consumePendingExternalIntents());
     }
   }
@@ -167,8 +167,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _syncIncomingBankNotifications() async {
-    await widget.controller.refreshNotificationPermission();
+  Future<void> _syncAutomationsOnResume() async {
     await widget.controller.refreshPostNotificationPermission();
 
     final recurring = await widget.controller.runRecurringAutomations();
@@ -177,23 +176,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         SnackBar(
           content: Text(
             'Auto-Catat Rutin: ${recurring.totalRecorded} transaksi terjadwal tercatat.',
-          ),
-        ),
-      );
-    }
-
-    if (!widget.controller.autoCaptureEnabled) {
-      return;
-    }
-    final captured = await widget.controller.drainNativeNotifications();
-    if (captured > 0 && mounted) {
-      final mode = widget.controller.autoCaptureMode;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            mode == AutoCaptureMode.autoSave
-                ? '$captured transaksi QRIS/bank otomatis tercatat.'
-                : '$captured transaksi QRIS/bank masuk antrean konfirmasi.',
           ),
         ),
       );
@@ -802,8 +784,8 @@ class _QuickAddDockBarState extends State<_QuickAddDockBar> {
                               child: Row(
                                 children: <Widget>[
                                   Icon(
-                                    Icons.bolt_rounded,
-                                    size: 18,
+                                    Icons.edit_note_rounded,
+                                    size: 19,
                                     color: saku.brandInteractive,
                                   ),
                                   const SizedBox(width: 9),

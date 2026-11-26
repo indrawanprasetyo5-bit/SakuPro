@@ -12,21 +12,7 @@ import '../models/transaction_item.dart';
 import '../models/wallet.dart';
 import '../theme/currency_format.dart';
 import 'automation_bridge_service.dart';
-import 'bank_notification_parser.dart';
 import 'export_backup_service.dart';
-import 'notification_bridge_service.dart';
-
-enum AutoCaptureMode {
-  autoSave('auto', 'Langsung Catat'),
-  inbox('inbox', 'Konfirmasi Dulu');
-
-  const AutoCaptureMode(this.code, this.label);
-  final String code;
-  final String label;
-
-  static AutoCaptureMode fromCode(String? code) =>
-      code == 'inbox' ? AutoCaptureMode.inbox : AutoCaptureMode.autoSave;
-}
 
 enum SafeSpendLevel {
   safe('Aman'),
@@ -117,10 +103,6 @@ class FinanceController extends ChangeNotifier {
   String _pinCode = '';
   bool _isSessionLocked = false;
 
-  bool _autoCaptureEnabled = false;
-  AutoCaptureMode _autoCaptureMode = AutoCaptureMode.autoSave;
-  bool _autoPairTransfers = true;
-  bool _autoReconcilePlan = true;
   bool _smartAlertsEnabled = true;
   bool _autoBackupEnabled = true;
   bool _autoSaveGoalEnabled = false;
@@ -132,19 +114,10 @@ class FinanceController extends ChangeNotifier {
   String _lastClosedExcelPath = '';
   String _dismissedRecapMonthKey = '';
   bool _postNotificationGranted = false;
-  Set<String> _enabledNotificationSourceIds = Set<String>.from(
-    BankNotificationParser.defaultEnabledSourceIds,
-  );
-  List<ParsedBankNotification> _pendingAutoTransactions =
-      <ParsedBankNotification>[];
-  List<AutoCaptureLogEntry> _autoCaptureLogs = <AutoCaptureLogEntry>[];
-  List<String> _processedFingerprints = <String>[];
   Map<String, String> _learnedMerchantCategories = <String, String>{};
   Set<int> _autoPayBillIds = <int>{};
   List<RecurringIncomeModel> _recurringIncomes = <RecurringIncomeModel>[];
   final Set<String> _sentAlertKeysToday = <String>{};
-  bool _notificationPermissionGranted = false;
-  bool _isDrainingNotifications = false;
 
   int _monthlyBudget = 3000000;
   List<WalletModel> _wallets = <WalletModel>[];
@@ -161,10 +134,6 @@ class FinanceController extends ChangeNotifier {
   bool get appLockEnabled => _appLockEnabled;
   bool get biometricEnabled => _biometricEnabled;
   bool get isSessionLocked => _appLockEnabled && _isSessionLocked;
-  bool get autoCaptureEnabled => _autoCaptureEnabled;
-  AutoCaptureMode get autoCaptureMode => _autoCaptureMode;
-  bool get autoPairTransfers => _autoPairTransfers;
-  bool get autoReconcilePlan => _autoReconcilePlan;
   bool get smartAlertsEnabled => _smartAlertsEnabled;
   bool get autoBackupEnabled => _autoBackupEnabled;
   bool get autoSaveGoalEnabled => _autoSaveGoalEnabled;
@@ -174,18 +143,11 @@ class FinanceController extends ChangeNotifier {
   String get lastAutoBackupPath => _lastAutoBackupPath;
   String get lastClosedExcelPath => _lastClosedExcelPath;
   bool get postNotificationGranted => _postNotificationGranted;
-  Set<String> get enabledNotificationSourceIds =>
-      Set<String>.unmodifiable(_enabledNotificationSourceIds);
-  List<ParsedBankNotification> get pendingAutoTransactions =>
-      List<ParsedBankNotification>.unmodifiable(_pendingAutoTransactions);
-  List<AutoCaptureLogEntry> get autoCaptureLogs =>
-      List<AutoCaptureLogEntry>.unmodifiable(_autoCaptureLogs);
   Map<String, String> get learnedMerchantCategories =>
       Map<String, String>.unmodifiable(_learnedMerchantCategories);
   Set<int> get autoPayBillIds => Set<int>.unmodifiable(_autoPayBillIds);
   List<RecurringIncomeModel> get recurringIncomes =>
       List<RecurringIncomeModel>.unmodifiable(_recurringIncomes);
-  bool get notificationPermissionGranted => _notificationPermissionGranted;
   int get monthlyBudget => _monthlyBudget;
   bool get isUsingInMemory => _store?.isInMemory ?? false;
 
@@ -520,15 +482,12 @@ class FinanceController extends ChangeNotifier {
       _biometricEnabled = savedBio == '1';
       _isSessionLocked = _appLockEnabled;
 
-      await _loadAutoCaptureSettings(store);
+      await _loadAutomationSettings(store);
       await _reloadData();
       await runRecurringAutomations(notify: false);
 
       if (_customStore == null) {
-        NotificationBridgeService.setOnPendingEventsAvailable(() {
-          unawaited(drainNativeNotifications());
-        });
-        unawaited(_bootstrapNativeNotifications());
+        unawaited(_bootstrapNativeAutomations());
       }
 
       _isLoading = false;
@@ -628,11 +587,6 @@ class FinanceController extends ChangeNotifier {
     }
     final base = Map<String, Object?>.from(await store.exportSnapshot());
     base['automation_settings'] = <String, Object?>{
-      'auto_capture_enabled': _autoCaptureEnabled,
-      'auto_capture_mode': _autoCaptureMode.code,
-      'auto_capture_sources': _enabledNotificationSourceIds.toList(),
-      'auto_pair_transfers': _autoPairTransfers,
-      'auto_reconcile_plan': _autoReconcilePlan,
       'smart_alerts_enabled': _smartAlertsEnabled,
       'auto_backup_enabled': _autoBackupEnabled,
       'auto_save_goal_enabled': _autoSaveGoalEnabled,
@@ -656,42 +610,6 @@ class FinanceController extends ChangeNotifier {
     final autoRaw = validated['automation_settings'];
     if (autoRaw is Map) {
       final auto = Map<String, Object?>.from(autoRaw);
-      if (auto['auto_capture_enabled'] is bool) {
-        _autoCaptureEnabled = auto['auto_capture_enabled'] as bool;
-        await store.setSetting(
-          'auto_capture_enabled',
-          _autoCaptureEnabled ? '1' : '0',
-        );
-      }
-      if (auto['auto_capture_mode'] is String) {
-        _autoCaptureMode = AutoCaptureMode.fromCode(
-          auto['auto_capture_mode'] as String,
-        );
-        await store.setSetting('auto_capture_mode', _autoCaptureMode.code);
-      }
-      if (auto['auto_capture_sources'] is List) {
-        final sources = (auto['auto_capture_sources'] as List)
-            .whereType<String>()
-            .toSet();
-        if (sources.isNotEmpty) {
-          _enabledNotificationSourceIds = sources;
-          await store.setSetting('auto_capture_sources', sources.join(','));
-        }
-      }
-      if (auto['auto_pair_transfers'] is bool) {
-        _autoPairTransfers = auto['auto_pair_transfers'] as bool;
-        await store.setSetting(
-          'auto_pair_transfers',
-          _autoPairTransfers ? '1' : '0',
-        );
-      }
-      if (auto['auto_reconcile_plan'] is bool) {
-        _autoReconcilePlan = auto['auto_reconcile_plan'] as bool;
-        await store.setSetting(
-          'auto_reconcile_plan',
-          _autoReconcilePlan ? '1' : '0',
-        );
-      }
       if (auto['smart_alerts_enabled'] is bool) {
         _smartAlertsEnabled = auto['smart_alerts_enabled'] as bool;
         await store.setSetting(
@@ -754,7 +672,6 @@ class FinanceController extends ChangeNotifier {
             .toList();
         await _persistRecurringIncomes();
       }
-      unawaited(_syncNativeNotificationConfig());
     }
 
     await _reloadData();
@@ -1123,16 +1040,7 @@ class FinanceController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _loadAutoCaptureSettings(SakuStore store) async {
-    _autoCaptureEnabled =
-        (await store.getSetting('auto_capture_enabled')) == '1';
-    _autoCaptureMode = AutoCaptureMode.fromCode(
-      await store.getSetting('auto_capture_mode'),
-    );
-    _autoPairTransfers =
-        (await store.getSetting('auto_pair_transfers')) != '0';
-    _autoReconcilePlan =
-        (await store.getSetting('auto_reconcile_plan')) != '0';
+  Future<void> _loadAutomationSettings(SakuStore store) async {
     _smartAlertsEnabled =
         (await store.getSetting('smart_alerts_enabled')) != '0';
     _autoBackupEnabled =
@@ -1158,52 +1066,6 @@ class FinanceController extends ChangeNotifier {
         (await store.getSetting('last_closed_excel_path')) ?? '';
     _dismissedRecapMonthKey =
         (await store.getSetting('dismissed_recap_month_key')) ?? '';
-
-    final rawSources = await store.getSetting('auto_capture_sources');
-    if (rawSources != null && rawSources.trim().isNotEmpty) {
-      final parsed = rawSources
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toSet();
-      if (parsed.isNotEmpty) {
-        _enabledNotificationSourceIds = parsed;
-      }
-    }
-
-    final rawPending = await store.getSetting('auto_capture_pending');
-    if (rawPending != null && rawPending.isNotEmpty) {
-      try {
-        final decoded = jsonDecode(rawPending);
-        if (decoded is List) {
-          _pendingAutoTransactions = decoded
-              .whereType<Map>()
-              .map(
-                (m) => ParsedBankNotification.fromJson(
-                  Map<String, Object?>.from(m),
-                ),
-              )
-              .toList();
-        }
-      } catch (_) {
-        _pendingAutoTransactions = <ParsedBankNotification>[];
-      }
-    }
-
-    final rawFingerprints = await store.getSetting('auto_capture_fingerprints');
-    if (rawFingerprints != null && rawFingerprints.isNotEmpty) {
-      try {
-        final decoded = jsonDecode(rawFingerprints);
-        if (decoded is List) {
-          _processedFingerprints = decoded
-              .whereType<String>()
-              .take(250)
-              .toList();
-        }
-      } catch (_) {
-        _processedFingerprints = <String>[];
-      }
-    }
 
     final rawMemory = await store.getSetting('merchant_category_memory');
     if (rawMemory != null && rawMemory.isNotEmpty) {
@@ -1250,41 +1112,9 @@ class FinanceController extends ChangeNotifier {
     }
   }
 
-  Future<void> _persistPendingAutoTransactions() async {
-    final store = _store;
-    if (store == null) {
-      return;
-    }
-    final payload = jsonEncode(
-      _pendingAutoTransactions.map((e) => e.toJson()).toList(),
-    );
-    await store.setSetting('auto_capture_pending', payload);
-  }
-
-  Future<void> _persistProcessedFingerprints() async {
-    final store = _store;
-    if (store == null) {
-      return;
-    }
-    if (_processedFingerprints.length > 250) {
-      _processedFingerprints = _processedFingerprints.sublist(
-        _processedFingerprints.length - 250,
-      );
-    }
-    await store.setSetting(
-      'auto_capture_fingerprints',
-      jsonEncode(_processedFingerprints),
-    );
-  }
-
-  Future<void> _bootstrapNativeNotifications() async {
-    await _syncNativeNotificationConfig();
-    await refreshNotificationPermission();
+  Future<void> _bootstrapNativeAutomations() async {
     await refreshPostNotificationPermission();
     await _syncHomeWidgetAndReminders();
-    if (_autoCaptureEnabled) {
-      await drainNativeNotifications();
-    }
     unawaited(runMonthlyClosingArchiveIfNeeded());
     unawaited(runAutoBackupIfDue());
   }
@@ -1312,12 +1142,6 @@ class FinanceController extends ChangeNotifier {
     return granted;
   }
 
-  Future<void> setAutoPairTransfers(bool enabled) async {
-    _autoPairTransfers = enabled;
-    await _store?.setSetting('auto_pair_transfers', enabled ? '1' : '0');
-    notifyListeners();
-  }
-
   Future<void> setSmartAlertsEnabled(bool enabled) async {
     _smartAlertsEnabled = enabled;
     await _store?.setSetting('smart_alerts_enabled', enabled ? '1' : '0');
@@ -1325,8 +1149,16 @@ class FinanceController extends ChangeNotifier {
     notifyListeners();
   }
 
+  static String _normalizeMerchantKey(String input) {
+    return input
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
   String? lookupLearnedCategory(String text) {
-    final key = BankNotificationParser.normalizeMerchantKey(text);
+    final key = _normalizeMerchantKey(text);
     if (key.length < 3 || _learnedMerchantCategories.isEmpty) {
       return null;
     }
@@ -1350,7 +1182,7 @@ class FinanceController extends ChangeNotifier {
         tx.category == 'Pemasukan Lain') {
       return;
     }
-    final key = BankNotificationParser.normalizeMerchantKey(tx.note);
+    final key = _normalizeMerchantKey(tx.note);
     if (key.length < 3) {
       return;
     }
@@ -1639,528 +1471,6 @@ class FinanceController extends ChangeNotifier {
     );
   }
 
-  Future<void> _syncNativeNotificationConfig() async {
-    if (_customStore != null) {
-      return;
-    }
-    final packages = BankNotificationParser.packagesForSourceIds(
-      _enabledNotificationSourceIds,
-    );
-    await NotificationBridgeService.updateConfig(
-      enabled: _autoCaptureEnabled,
-      packages: packages,
-    );
-  }
-
-  Future<bool> refreshNotificationPermission({bool notify = true}) async {
-    if (_customStore != null) {
-      return _notificationPermissionGranted;
-    }
-    final granted = await NotificationBridgeService.isPermissionGranted();
-    _notificationPermissionGranted = granted;
-    if (notify) {
-      notifyListeners();
-    }
-    return granted;
-  }
-
-  Future<void> setAutoCaptureEnabled(bool enabled) async {
-    _autoCaptureEnabled = enabled;
-    await _store?.setSetting('auto_capture_enabled', enabled ? '1' : '0');
-    await _syncNativeNotificationConfig();
-    if (enabled) {
-      await drainNativeNotifications(notify: false);
-    }
-    notifyListeners();
-  }
-
-  Future<void> setAutoCaptureMode(AutoCaptureMode mode) async {
-    _autoCaptureMode = mode;
-    await _store?.setSetting('auto_capture_mode', mode.code);
-    notifyListeners();
-  }
-
-  Future<void> toggleNotificationSource(String sourceId, bool enabled) async {
-    final next = Set<String>.from(_enabledNotificationSourceIds);
-    if (enabled) {
-      next.add(sourceId);
-    } else if (next.length > 1) {
-      next.remove(sourceId);
-    }
-    _enabledNotificationSourceIds = next;
-    await _store?.setSetting('auto_capture_sources', next.join(','));
-    await _syncNativeNotificationConfig();
-    notifyListeners();
-  }
-
-  bool get hasMissingPriorityBankWallets {
-    final names = _wallets.map((w) => w.name.toLowerCase()).toSet();
-    return !names.contains('seabank') || !names.contains('bank jago');
-  }
-
-  Future<int> ensurePriorityBankWallets() async {
-    final store = _store;
-    if (store == null) {
-      return 0;
-    }
-    var added = 0;
-    for (final sourceId in <String>['seabank', 'jago']) {
-      final src = BankNotificationParser.findSourceById(sourceId);
-      if (src == null) {
-        continue;
-      }
-      final exists = _wallets.any(
-        (w) => w.name.toLowerCase() == src.walletName.toLowerCase(),
-      );
-      if (!exists) {
-        await store.addWallet(
-          WalletModel(
-            name: src.walletName,
-            kind: src.walletKind,
-            balance: 0,
-            colorValue: src.walletColor,
-            iconKey: src.walletIconKey,
-            sortOrder: _wallets.length + added,
-            createdAt: now,
-          ),
-        );
-        added++;
-      }
-    }
-    if (added > 0) {
-      await _reloadData();
-      notifyListeners();
-    }
-    return added;
-  }
-
-  Future<WalletModel?> _resolveOrCreateWalletForSource(
-    String sourceId,
-    String suggestedName,
-  ) async {
-    for (final w in _wallets) {
-      if (w.name.toLowerCase() == suggestedName.toLowerCase()) {
-        return w;
-      }
-    }
-    for (final w in _wallets) {
-      if (w.name.toLowerCase().contains(suggestedName.toLowerCase()) ||
-          suggestedName.toLowerCase().contains(w.name.toLowerCase())) {
-        return w;
-      }
-    }
-
-    final store = _store;
-    final src = BankNotificationParser.findSourceById(sourceId);
-    if (store != null && src != null) {
-      await store.addWallet(
-        WalletModel(
-          name: src.walletName,
-          kind: src.walletKind,
-          balance: 0,
-          colorValue: src.walletColor,
-          iconKey: src.walletIconKey,
-          sortOrder: _wallets.length,
-          createdAt: now,
-        ),
-      );
-      await _reloadData();
-      for (final w in _wallets) {
-        if (w.name.toLowerCase() == src.walletName.toLowerCase()) {
-          return w;
-        }
-      }
-    }
-    return _wallets.isNotEmpty ? _wallets.first : null;
-  }
-
-  Future<int> drainNativeNotifications({bool notify = true}) async {
-    if (_isDrainingNotifications) {
-      return 0;
-    }
-    _isDrainingNotifications = true;
-    try {
-      final events = await NotificationBridgeService.drainPendingEvents();
-      var capturedCount = 0;
-      for (final event in events) {
-        final accepted = await processRawNotification(
-          event,
-          notify: false,
-        );
-        if (accepted) {
-          capturedCount++;
-        }
-      }
-      if (notify && (capturedCount > 0 || events.isNotEmpty)) {
-        notifyListeners();
-      }
-      return capturedCount;
-    } finally {
-      _isDrainingNotifications = false;
-    }
-  }
-
-  Future<bool> processRawNotification(
-    RawBankNotification raw, {
-    bool isSimulation = false,
-    bool notify = true,
-  }) async {
-    final source = BankNotificationParser.findSourceByPackage(raw.packageName);
-    final sourceName = source?.name ?? raw.packageName;
-    final parsed = BankNotificationParser.parse(
-      raw,
-      learnedCategories: _learnedMerchantCategories,
-    );
-
-    if (parsed == null) {
-      _appendLog(
-        AutoCaptureLogEntry(
-          sourceName: sourceName,
-          title: raw.title,
-          text: raw.text,
-          statusLabel: 'Diabaikan (bukan transaksi / promo / OTP)',
-          accepted: false,
-          timestamp: raw.timestamp,
-        ),
-      );
-      if (notify) {
-        notifyListeners();
-      }
-      return false;
-    }
-
-    if (!isSimulation && _processedFingerprints.contains(parsed.fingerprint)) {
-      _appendLog(
-        AutoCaptureLogEntry(
-          sourceName: parsed.sourceName,
-          title: raw.title,
-          text: raw.text,
-          statusLabel: 'Duplikat diabaikan',
-          accepted: false,
-          timestamp: raw.timestamp,
-        ),
-      );
-      if (notify) {
-        notifyListeners();
-      }
-      return false;
-    }
-
-    if (!isSimulation) {
-      _processedFingerprints.add(parsed.fingerprint);
-      await _persistProcessedFingerprints();
-    }
-
-    if (_autoCaptureMode == AutoCaptureMode.autoSave) {
-      final wallet = await _resolveOrCreateWalletForSource(
-        parsed.sourceId,
-        parsed.suggestedWalletName,
-      );
-      if (wallet?.id != null && _store != null) {
-        if (_autoPairTransfers) {
-          final pairedLog = await _tryPairSelfTransfer(
-            parsed: parsed,
-            wallet: wallet!,
-          );
-          if (pairedLog != null) {
-            _appendLog(
-              AutoCaptureLogEntry(
-                sourceName: parsed.sourceName,
-                title: raw.title,
-                text: raw.text,
-                statusLabel: pairedLog,
-                accepted: true,
-                timestamp: parsed.timestamp,
-              ),
-            );
-            if (notify) {
-              notifyListeners();
-            }
-            return true;
-          }
-        }
-
-        final savedTx = TransactionModel(
-          kind: parsed.kind,
-          amount: parsed.amount,
-          category: parsed.category,
-          note: parsed.note,
-          walletId: wallet!.id!,
-          transactionDate: parsed.timestamp,
-          createdAt: now,
-        );
-        await _store!.addTransaction(savedTx);
-        final reconcileNote = _autoReconcilePlan
-            ? await _autoReconcileBillsAndDebts(parsed)
-            : null;
-        await _applyAutoGoalAllocationIfEligible(savedTx);
-        await _reloadData();
-        if (parsed.kind == TransactionKind.expense) {
-          unawaited(_evaluateBudgetAlertsAfterExpense(parsed.category));
-        }
-        final baseStatus =
-            'Tercatat otomatis (${IdrFormat.currency(parsed.amount)} · ${wallet.name})';
-        _appendLog(
-          AutoCaptureLogEntry(
-            sourceName: parsed.sourceName,
-            title: raw.title,
-            text: raw.text,
-            statusLabel: reconcileNote != null
-                ? '$baseStatus · $reconcileNote'
-                : baseStatus,
-            accepted: true,
-            timestamp: parsed.timestamp,
-          ),
-        );
-        if (notify) {
-          notifyListeners();
-        }
-        return true;
-      }
-    }
-
-    final uniqueItem = isSimulation
-        ? ParsedBankNotification(
-            fingerprint:
-                '${parsed.fingerprint}_${DateTime.now().microsecondsSinceEpoch}',
-            sourceId: parsed.sourceId,
-            sourceName: parsed.sourceName,
-            suggestedWalletName: parsed.suggestedWalletName,
-            kind: parsed.kind,
-            amount: parsed.amount,
-            merchant: parsed.merchant,
-            category: parsed.category,
-            note: parsed.note,
-            timestamp: parsed.timestamp,
-            rawTitle: parsed.rawTitle,
-            rawText: parsed.rawText,
-          )
-        : parsed;
-
-    _pendingAutoTransactions = <ParsedBankNotification>[
-      uniqueItem,
-      ..._pendingAutoTransactions,
-    ];
-    await _persistPendingAutoTransactions();
-
-    _appendLog(
-      AutoCaptureLogEntry(
-        sourceName: parsed.sourceName,
-        title: raw.title,
-        text: raw.text,
-        statusLabel:
-            'Masuk antrean konfirmasi (${IdrFormat.currency(parsed.amount)})',
-        accepted: true,
-        timestamp: parsed.timestamp,
-      ),
-    );
-    if (notify) {
-      notifyListeners();
-    }
-    return true;
-  }
-
-  Future<bool> approvePendingAutoTransaction(
-    String fingerprint, {
-    int? overrideWalletId,
-    String? overrideCategory,
-    String? overrideNote,
-    int? overrideAmount,
-  }) async {
-    final idx = _pendingAutoTransactions.indexWhere(
-      (e) => e.fingerprint == fingerprint,
-    );
-    if (idx < 0 || _store == null) {
-      return false;
-    }
-    final item = _pendingAutoTransactions[idx];
-    final targetWallet = overrideWalletId != null
-        ? walletById(overrideWalletId)
-        : await _resolveOrCreateWalletForSource(
-            item.sourceId,
-            item.suggestedWalletName,
-          );
-    if (targetWallet?.id == null) {
-      return false;
-    }
-
-    final savedTx = TransactionModel(
-      kind: item.kind,
-      amount: overrideAmount ?? item.amount,
-      category: overrideCategory ?? item.category,
-      note: overrideNote ?? item.note,
-      walletId: targetWallet!.id!,
-      transactionDate: item.timestamp,
-      createdAt: now,
-    );
-    await _store!.addTransaction(savedTx);
-    await _learnFromTransaction(savedTx);
-    await _applyAutoGoalAllocationIfEligible(savedTx);
-    _pendingAutoTransactions.removeAt(idx);
-    await _persistPendingAutoTransactions();
-    await _reloadData();
-    if (savedTx.kind == TransactionKind.expense) {
-      unawaited(_evaluateBudgetAlertsAfterExpense(savedTx.category));
-    }
-    notifyListeners();
-    return true;
-  }
-
-  WalletModel? _findExistingWalletByName(String name) {
-    final target = name.trim().toLowerCase();
-    for (final w in _wallets) {
-      if (w.name.toLowerCase() == target) {
-        return w;
-      }
-    }
-    return null;
-  }
-
-  Future<String?> _tryPairSelfTransfer({
-    required ParsedBankNotification parsed,
-    required WalletModel wallet,
-  }) async {
-    final store = _store;
-    if (store == null || wallet.id == null) {
-      return null;
-    }
-
-    const pairWindow = Duration(minutes: 3);
-    const maxAdminFeeDelta = 6500;
-
-    // 1. Absorb the second leg if a matching transfer was already recorded moments earlier.
-    for (final existing in _transactions.take(15)) {
-      if (existing.kind != TransactionKind.transfer) {
-        continue;
-      }
-      final timeDiff = parsed.timestamp
-          .difference(existing.transactionDate)
-          .abs();
-      final amountDiff = (existing.amount - parsed.amount).abs();
-      if (timeDiff <= pairWindow && amountDiff <= maxAdminFeeDelta) {
-        final matchesIncomingLeg =
-            parsed.kind == TransactionKind.income &&
-            existing.toWalletId == wallet.id;
-        final matchesOutgoingLeg =
-            parsed.kind == TransactionKind.expense &&
-            existing.walletId == wallet.id;
-        if (matchesIncomingLeg || matchesOutgoingLeg) {
-          return 'Disatukan ke Transfer Antar Dompet yang sudah tercatat';
-        }
-      }
-    }
-
-    // 2. Pair opposite-direction notification (expense in wallet A + income in wallet B).
-    for (final existing in _transactions.take(15)) {
-      if (existing.id == null || existing.walletId == wallet.id) {
-        continue;
-      }
-      final isOpposite =
-          (existing.kind == TransactionKind.expense &&
-              parsed.kind == TransactionKind.income) ||
-          (existing.kind == TransactionKind.income &&
-              parsed.kind == TransactionKind.expense);
-      if (!isOpposite) {
-        continue;
-      }
-      final timeDiff = parsed.timestamp
-          .difference(existing.transactionDate)
-          .abs();
-      final amountDiff = (existing.amount - parsed.amount).abs();
-      if (timeDiff <= pairWindow && amountDiff <= maxAdminFeeDelta) {
-        final fromWalletId = existing.kind == TransactionKind.expense
-            ? existing.walletId
-            : wallet.id!;
-        final toWalletId = existing.kind == TransactionKind.expense
-            ? wallet.id!
-            : existing.walletId;
-        final fromName = walletById(fromWalletId)?.name ?? 'Dompet';
-        final toName = walletById(toWalletId)?.name ?? 'Dompet';
-        final transferAmount = existing.amount < parsed.amount
-            ? existing.amount
-            : parsed.amount;
-
-        await store.updateTransaction(
-          existing.copyWith(
-            kind: TransactionKind.transfer,
-            amount: transferAmount,
-            category: CategoryCatalog.transferMeta.name,
-            note: 'Transfer $fromName -> $toName',
-            walletId: fromWalletId,
-            toWalletId: toWalletId,
-          ),
-        );
-        await _reloadData();
-        return 'Dipasangkan otomatis: Transfer $fromName -> $toName (${IdrFormat.currency(transferAmount)})';
-      }
-    }
-
-    // 3. Explicit outgoing top-up or transfer naming another wallet owned by the user.
-    if (parsed.kind == TransactionKind.expense &&
-        parsed.targetWalletHint != null) {
-      final destWallet = _findExistingWalletByName(parsed.targetWalletHint!);
-      if (destWallet?.id != null && destWallet!.id != wallet.id) {
-        await store.addTransaction(
-          TransactionModel(
-            kind: TransactionKind.transfer,
-            amount: parsed.amount,
-            category: CategoryCatalog.transferMeta.name,
-            note: 'Transfer ${wallet.name} -> ${destWallet.name}',
-            walletId: wallet.id!,
-            toWalletId: destWallet.id!,
-            transactionDate: parsed.timestamp,
-            createdAt: now,
-          ),
-        );
-        await _reloadData();
-        return 'Transfer otomatis: ${wallet.name} -> ${destWallet.name} (${IdrFormat.currency(parsed.amount)})';
-      }
-    }
-
-    return null;
-  }
-
-  Future<int> approveAllPendingAutoTransactions() async {
-    final snapshot = List<ParsedBankNotification>.from(_pendingAutoTransactions);
-    var saved = 0;
-    for (final item in snapshot) {
-      final ok = await approvePendingAutoTransaction(item.fingerprint);
-      if (ok) {
-        saved++;
-      }
-    }
-    return saved;
-  }
-
-  Future<void> dismissPendingAutoTransaction(String fingerprint) async {
-    _pendingAutoTransactions.removeWhere((e) => e.fingerprint == fingerprint);
-    await _persistPendingAutoTransactions();
-    notifyListeners();
-  }
-
-  Future<List<RawBankNotification>> loadNativeRecentLogs() {
-    return NotificationBridgeService.readRecentLogs();
-  }
-
-  Future<void> clearAutoCaptureLogs() async {
-    _autoCaptureLogs = <AutoCaptureLogEntry>[];
-    await NotificationBridgeService.clearRecentLogs();
-    notifyListeners();
-  }
-
-  void _appendLog(AutoCaptureLogEntry entry) {
-    _autoCaptureLogs = <AutoCaptureLogEntry>[entry, ..._autoCaptureLogs];
-    if (_autoCaptureLogs.length > 30) {
-      _autoCaptureLogs = _autoCaptureLogs.sublist(0, 30);
-    }
-  }
-
-  Future<void> setAutoReconcilePlan(bool enabled) async {
-    _autoReconcilePlan = enabled;
-    await _store?.setSetting('auto_reconcile_plan', enabled ? '1' : '0');
-    notifyListeners();
-  }
-
   Future<void> setAutoBackupEnabled(bool enabled) async {
     _autoBackupEnabled = enabled;
     await _store?.setSetting('auto_backup_enabled', enabled ? '1' : '0');
@@ -2214,108 +1524,6 @@ class FinanceController extends ChangeNotifier {
     return _goals.first;
   }
 
-  Future<String?> _autoReconcileBillsAndDebts(
-    ParsedBankNotification parsed,
-  ) async {
-    final store = _store;
-    if (store == null) {
-      return null;
-    }
-
-    final hay = BankNotificationParser.normalizeMerchantKey(
-      '${parsed.merchant} ${parsed.rawTitle} ${parsed.rawText}',
-    );
-    if (hay.isEmpty) {
-      return null;
-    }
-
-    // 1. Match active Receivables (incoming) or Payables (outgoing) by party name.
-    for (final debt in _debts) {
-      if (debt.id == null || debt.isSettled) {
-        continue;
-      }
-      final kindMatches =
-          (parsed.kind == TransactionKind.income && debt.isReceivable) ||
-          (parsed.kind == TransactionKind.expense && !debt.isReceivable);
-      if (!kindMatches) {
-        continue;
-      }
-      if (_matchesEntityName(debt.personName, hay)) {
-        final nextRemaining = (debt.remainingAmount - parsed.amount).clamp(
-          0,
-          debt.principalAmount,
-        );
-        await store.updateDebt(
-          debt.copyWith(
-            remainingAmount: nextRemaining,
-            status: nextRemaining <= 0 ? 'paid' : 'open',
-          ),
-        );
-        final label = debt.isReceivable ? 'Piutang' : 'Hutang';
-        return nextRemaining <= 0
-            ? 'Auto-Lunas $label ${debt.personName}'
-            : 'Auto-Potong $label ${debt.personName} (sisa ${IdrFormat.currency(nextRemaining)})';
-      }
-    }
-
-    // 2. Match unpaid monthly Bills on outgoing expense by bill name or exact amount + category.
-    if (parsed.kind == TransactionKind.expense) {
-      final cycleKey = BillModel.monthKeyFor(parsed.timestamp);
-      for (final bill in _bills) {
-        if (bill.id == null || bill.isPaidFor(parsed.timestamp)) {
-          continue;
-        }
-        final nameMatched = _matchesEntityName(bill.name, hay);
-        final amountAndCatMatched =
-            (bill.amount - parsed.amount).abs() <= 5000 &&
-            bill.category.toLowerCase() == parsed.category.toLowerCase();
-        if (nameMatched || amountAndCatMatched) {
-          await store.updateBill(
-            bill.copyWith(
-              isPaidCurrentCycle: true,
-              lastPaidMonth: cycleKey,
-            ),
-          );
-          return 'Auto-Lunas Tagihan ${bill.name}';
-        }
-      }
-    }
-
-    return null;
-  }
-
-  bool _matchesEntityName(String entityName, String normalizedHaystack) {
-    final normalizedName = BankNotificationParser.normalizeMerchantKey(
-      entityName,
-    );
-    if (normalizedName.length < 3) {
-      return false;
-    }
-    if (normalizedHaystack.contains(normalizedName)) {
-      return true;
-    }
-    final tokens = normalizedName
-        .split(' ')
-        .where(
-          (t) =>
-              t.length >= 4 &&
-              !const <String>{
-                'bayar',
-                'tagihan',
-                'cicilan',
-                'bulanan',
-                'rumah',
-                'paket',
-                'token',
-              }.contains(t),
-        )
-        .toList();
-    if (tokens.isEmpty) {
-      return false;
-    }
-    return tokens.any((t) => normalizedHaystack.contains(t));
-  }
-
   Future<void> _applyAutoGoalAllocationIfEligible(TransactionModel tx) async {
     final store = _store;
     if (store == null || !_autoSaveGoalEnabled || tx.kind != TransactionKind.income) {
@@ -2340,17 +1548,6 @@ class FinanceController extends ChangeNotifier {
       goal.copyWith(
         currentAmount: nextSaved,
         isCompleted: nextSaved >= goal.targetAmount,
-      ),
-    );
-    _appendLog(
-      AutoCaptureLogEntry(
-        sourceName: 'Auto-Tabungan',
-        title: 'Sisihkan $_autoSaveGoalPercent% ke ${goal.name}',
-        text: 'Dari pemasukan ${tx.displayTitle} (${IdrFormat.currency(tx.amount)})',
-        statusLabel:
-            'Progres ${goal.name} bertambah ${IdrFormat.currency(alloc)}',
-        accepted: true,
-        timestamp: now,
       ),
     );
   }
@@ -2501,11 +1698,5 @@ class FinanceController extends ChangeNotifier {
     await _store?.setSetting('last_auto_backup_path', _lastAutoBackupPath);
     notifyListeners();
     return _lastAutoBackupPath;
-  }
-
-  @override
-  void dispose() {
-    NotificationBridgeService.setOnPendingEventsAvailable(null);
-    super.dispose();
   }
 }

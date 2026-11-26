@@ -6,7 +6,6 @@ import 'package:saku_pro/main.dart';
 import 'package:saku_pro/models/roadmap_models.dart';
 import 'package:saku_pro/models/transaction_item.dart';
 import 'package:saku_pro/models/wallet.dart';
-import 'package:saku_pro/services/bank_notification_parser.dart';
 import 'package:saku_pro/services/export_backup_service.dart';
 import 'package:saku_pro/services/finance_controller.dart';
 import 'package:saku_pro/widgets/auto_capture_sheet.dart';
@@ -405,105 +404,7 @@ void main() {
       expect(decodedEmpty.tables.length, 5);
     });
 
-    test('Auto-Catat QRIS parser & controller handle SeaBank, DANA, GoPay, Bank Jago, spam & dedupe', () async {
-      final now = DateTime(2026, 11, 26, 17, 30);
-      final controller = FinanceController(
-        customStore: InMemorySakuStore(),
-        clock: () => now,
-      );
-      await controller.initialize();
-      await controller.setAutoCaptureEnabled(true);
-      await controller.setAutoCaptureMode(AutoCaptureMode.autoSave);
-
-      // 1. SeaBank QRIS Kopi Kenangan -> auto-creates SeaBank wallet & records expense.
-      final seabankRaw = RawBankNotification(
-        packageName: 'id.co.bankbkemobile.digitalbank',
-        title: 'Pembayaran QRIS Berhasil',
-        text: 'Kamu telah membayar Rp28.000 ke Kopi Kenangan menggunakan QRIS.',
-        postTimeMs: now.millisecondsSinceEpoch,
-      );
-      expect(await controller.processRawNotification(seabankRaw), isTrue);
-      // Duplicate within 20s must be ignored.
-      expect(await controller.processRawNotification(seabankRaw), isFalse);
-      expect(controller.wallets.any((w) => w.name == 'SeaBank'), isTrue);
-      expect(controller.transactions.last.category, 'Ngopi');
-      expect(controller.transactions.last.amount, 28000);
-
-      // 2. DANA QRIS Indomaret -> Belanja, maps to DANA wallet.
-      final danaRaw = RawBankNotification(
-        packageName: 'id.dana',
-        title: 'Pembayaran Berhasil',
-        text: 'Kamu berhasil bayar Rp42.500 di Indomaret menggunakan DANA.',
-        postTimeMs: now.millisecondsSinceEpoch + 30000,
-      );
-      expect(await controller.processRawNotification(danaRaw), isTrue);
-
-      // 3. GoPay QRIS Mie Gacoan -> Makan & Minum, maps to GoPay wallet.
-      final gopayRaw = RawBankNotification(
-        packageName: 'com.gojek.gopay',
-        title: 'Pembayaran GoPay Berhasil',
-        text: 'Kamu bayar Rp36.000 ke Mie Gacoan pakai GoPay QRIS.',
-        postTimeMs: now.millisecondsSinceEpoch + 60000,
-      );
-      expect(await controller.processRawNotification(gopayRaw), isTrue);
-
-      // 4. Bank Jago QRIS Fore Coffee -> auto-creates Bank Jago wallet.
-      final jagoRaw = RawBankNotification(
-        packageName: 'com.jago.digitalBanking',
-        title: 'Pembayaran QRIS berhasil',
-        text: 'Transaksi QRIS sebesar Rp55.000 di Fore Coffee berhasil dari Kantong Utama.',
-        postTimeMs: now.millisecondsSinceEpoch + 90000,
-      );
-      expect(await controller.processRawNotification(jagoRaw), isTrue);
-      expect(controller.wallets.any((w) => w.name == 'Bank Jago'), isTrue);
-
-      // 5. SeaBank Transfer Masuk -> Income.
-      final incomeRaw = RawBankNotification(
-        packageName: 'id.co.bankbkemobile.digitalbank',
-        title: 'Transfer Masuk',
-        text: 'Kamu menerima transfer sebesar Rp750.000 dari Raka Pratama.',
-        postTimeMs: now.millisecondsSinceEpoch + 120000,
-      );
-      expect(await controller.processRawNotification(incomeRaw), isTrue);
-      expect(controller.monthlyIncome, 750000);
-      expect(controller.monthlyExpense, 28000 + 42500 + 36000 + 55000);
-
-      // 6. Promo spam and OTP must be rejected completely.
-      final promoRaw = RawBankNotification(
-        packageName: 'id.dana',
-        title: 'Cashback hingga Rp50.000!',
-        text: 'Bayar QRIS hari ini dan dapatkan voucher diskon spesial.',
-        postTimeMs: now.millisecondsSinceEpoch + 150000,
-      );
-      final otpRaw = RawBankNotification(
-        packageName: 'id.co.bankbkemobile.digitalbank',
-        title: 'Kode OTP SeaBank',
-        text: 'Jangan berikan kode verifikasi 882910 untuk transaksi Rp100.000.',
-        postTimeMs: now.millisecondsSinceEpoch + 180000,
-      );
-      expect(await controller.processRawNotification(promoRaw), isFalse);
-      expect(await controller.processRawNotification(otpRaw), isFalse);
-      expect(controller.transactions.length, 5);
-
-      // 7. Inbox confirmation mode queues pending item and saves on approve.
-      await controller.setAutoCaptureMode(AutoCaptureMode.inbox);
-      final inboxRaw = RawBankNotification(
-        packageName: 'com.gojek.app',
-        title: 'Pembayaran QRIS Berhasil',
-        text: 'Pembayaran QRIS Rp19.000 ke Warteg Bahari berhasil.',
-        postTimeMs: now.millisecondsSinceEpoch + 210000,
-      );
-      expect(await controller.processRawNotification(inboxRaw), isTrue);
-      expect(controller.pendingAutoTransactions.length, 1);
-      expect(controller.transactions.length, 5);
-
-      final savedCount = await controller.approveAllPendingAutoTransactions();
-      expect(savedCount, 1);
-      expect(controller.pendingAutoTransactions, isEmpty);
-      expect(controller.transactions.length, 6);
-    });
-
-    testWidgets('AutoCaptureSheet renders cleanly on narrow 360dp phone with 1.3x font scale', (
+    testWidgets('Pusat Otomatisasi sheet renders cleanly on narrow 360dp phone with 1.3x font scale', (
       WidgetTester tester,
     ) async {
       tester.view.physicalSize = const Size(1080, 2340);
@@ -531,82 +432,28 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Auto-Catat QRIS & Bank'));
+      await tester.tap(find.byTooltip('Pusat Otomatisasi'));
       await tester.pumpAndSettle();
       expect(find.byType(AutoCaptureSheet), findsOneWidget);
-
-      await tester.scrollUntilVisible(
-        find.text('SeaBank'),
-        200,
-        scrollable: find.descendant(
-          of: find.byType(AutoCaptureSheet),
-          matching: find.byType(Scrollable),
-        ).first,
-      );
-      expect(find.text('SeaBank'), findsOneWidget);
-      expect(find.text('Bank Jago'), findsOneWidget);
+      expect(find.text('Pusat Otomatisasi'), findsOneWidget);
+      expect(find.text('Bagikan Resi dari Aplikasi Bank'), findsOneWidget);
 
       Navigator.of(tester.element(find.byType(AutoCaptureSheet))).pop();
       await tester.pumpAndSettle();
     });
 
-    test('Full automation suite: Self-Transfer pairing, Merchant learning memory, Auto-Gaji & Auto-Pay bills', () async {
-      final now = DateTime(2026, 11, 26, 18, 15);
+    test('Offline automation suite: Merchant memory, Auto-Gaji, Auto-Pay bills, Auto-Save Goal, Monthly Closing & Auto-Backup', () async {
+      final now = DateTime(2026, 11, 26, 18, 25);
       final controller = FinanceController(
         customStore: InMemorySakuStore(),
         clock: () => now,
       );
       await controller.initialize();
-      await controller.ensurePriorityBankWallets();
-      await controller.setAutoCaptureEnabled(true);
-      await controller.setAutoCaptureMode(AutoCaptureMode.autoSave);
-      await controller.setAutoPairTransfers(true);
 
-      // 1A. Explicit top-up to another owned wallet -> recorded directly as Transfer, second leg absorbed.
-      final topUpOut = RawBankNotification(
-        packageName: 'id.co.bankbkemobile.digitalbank',
-        title: 'Top Up E-Wallet Berhasil',
-        text: 'Kamu berhasil top up DANA sebesar Rp200.000 dari SeaBank.',
-        postTimeMs: now.millisecondsSinceEpoch,
-      );
-      final topUpIn = RawBankNotification(
-        packageName: 'id.dana',
-        title: 'Saldo Masuk',
-        text: 'Kamu menerima Rp200.000 dari SeaBank.',
-        postTimeMs: now.millisecondsSinceEpoch + 15000,
-      );
-      expect(await controller.processRawNotification(topUpOut), isTrue);
-      expect(await controller.processRawNotification(topUpIn), isTrue);
-      expect(controller.transactions.length, 1);
-      expect(controller.transactions.first.kind, TransactionKind.transfer);
-      expect(controller.monthlyExpense, 0);
-      expect(controller.monthlyIncome, 0);
-
-      // 1B. Opposite-direction pairing within 3 minutes -> merges into 1 Transfer without inflating expense/income.
-      final jagoOut = RawBankNotification(
-        packageName: 'com.jago.digitalBanking',
-        title: 'Uang keluar',
-        text: 'Transfer keluar Rp300.000 ke rekening tujuan berhasil.',
-        postTimeMs: now.millisecondsSinceEpoch + 600000,
-      );
-      final gopayIn = RawBankNotification(
-        packageName: 'com.gojek.gopay',
-        title: 'GoPay masuk!',
-        text: 'Kamu terima Rp300.000 dari rekening pengirim.',
-        postTimeMs: now.millisecondsSinceEpoch + 645000,
-      );
-      expect(await controller.processRawNotification(jagoOut), isTrue);
-      expect(await controller.processRawNotification(gopayIn), isTrue);
-      expect(controller.transactions.length, 2);
-      expect(
-        controller.transactions.every((t) => t.kind == TransactionKind.transfer),
-        isTrue,
-      );
-      expect(controller.monthlyExpense, 0);
-      expect(controller.monthlyIncome, 0);
-
-      // 2. Self-learning merchant category memory.
       final cash = controller.wallets.firstWhere((w) => w.name == 'Cash');
+      final bca = controller.wallets.firstWhere((w) => w.name == 'BCA');
+
+      // 1. Self-learning merchant category memory.
       await controller.addTransaction(
         TransactionModel(
           kind: TransactionKind.expense,
@@ -622,20 +469,8 @@ void main() {
         controller.lookupLearnedCategory('QRIS Warung Pak Slamet'),
         'Makan & Minum',
       );
-      final qrisLearned = RawBankNotification(
-        packageName: 'id.co.bankbkemobile.digitalbank',
-        title: 'Pembayaran QRIS Berhasil',
-        text: 'Kamu telah membayar Rp24.000 ke Warung Pak Slamet menggunakan QRIS.',
-        postTimeMs: now.millisecondsSinceEpoch + 900000,
-      );
-      expect(await controller.processRawNotification(qrisLearned), isTrue);
-      final learnedTx = controller.transactions.firstWhere(
-        (t) => t.amount == 24000,
-      );
-      expect(learnedTx.category, 'Makan & Minum');
 
-      // 4A. Recurring Auto-Gaji (day 25 <= current day 26 -> auto-credited once, idempotent).
-      final bca = controller.wallets.firstWhere((w) => w.name == 'BCA');
+      // 2. Recurring Auto-Gaji (day 25 <= current day 26 -> auto-credited once, idempotent).
       await controller.addRecurringIncome(
         name: 'Gaji Bulanan',
         amount: 9000000,
@@ -647,7 +482,7 @@ void main() {
       expect(rerun.autoCreditedIncomes, 0);
       expect(controller.monthlyIncome, 9000000);
 
-      // 4B. Auto-Pay Recurring Bill (dueDay 20 <= current day 26 -> auto-paid once & marked Lunas).
+      // 3. Auto-Pay Recurring Bill (dueDay 20 <= current day 26 -> auto-paid once & marked Lunas).
       await controller.addBill(
         name: 'Internet Fiber',
         amount: 375000,
@@ -660,60 +495,7 @@ void main() {
       await controller.setBillAutoPay(bill.id!, true);
       final updatedBill = controller.bills.firstWhere((b) => b.id == bill.id);
       expect(updatedBill.isPaidFor(now), isTrue);
-      expect(controller.monthlyExpense, 20000 + 24000 + 375000);
-    });
-
-    test('v1.2.0 final automation: Auto-Reconcile bills/debts, Auto-Save Goal, Monthly Closing & Auto-Backup', () async {
-      final now = DateTime(2026, 11, 26, 18, 25);
-      final controller = FinanceController(
-        customStore: InMemorySakuStore(),
-        clock: () => now,
-      );
-      await controller.initialize();
-      await controller.setAutoCaptureEnabled(true);
-      await controller.setAutoCaptureMode(AutoCaptureMode.autoSave);
-      await controller.setAutoReconcilePlan(true);
-
-      final bca = controller.wallets.firstWhere((w) => w.name == 'BCA');
-
-      // 1A. Auto-deduct Receivable from bank incoming transfer notification.
-      await controller.addDebt(
-        personName: 'Raka Pratama',
-        phone: '081234567890',
-        kind: DebtKind.receivable,
-        principalAmount: 750000,
-      );
-      final rakaPay = RawBankNotification(
-        packageName: 'id.co.bankbkemobile.digitalbank',
-        title: 'Transfer Masuk',
-        text: 'Kamu menerima transfer sebesar Rp500.000 dari Raka Pratama.',
-        postTimeMs: now.millisecondsSinceEpoch,
-      );
-      expect(await controller.processRawNotification(rakaPay), isTrue);
-      final updatedRaka = controller.debts.firstWhere(
-        (d) => d.personName == 'Raka Pratama',
-      );
-      expect(updatedRaka.remainingAmount, 250000);
-      expect(updatedRaka.isSettled, isFalse);
-
-      // 1B. Auto-mark unpaid Bill as Lunas when matching bank payment arrives.
-      await controller.addBill(
-        name: 'Internet IndiHome',
-        amount: 385000,
-        category: 'Tagihan & Utilitas',
-        dueDay: 20,
-      );
-      final indihomePay = RawBankNotification(
-        packageName: 'id.dana',
-        title: 'Pembayaran Berhasil',
-        text: 'Kamu berhasil bayar Rp385.000 ke IndiHome menggunakan DANA.',
-        postTimeMs: now.millisecondsSinceEpoch + 30000,
-      );
-      expect(await controller.processRawNotification(indihomePay), isTrue);
-      final paidIndihome = controller.bills.firstWhere(
-        (b) => b.name == 'Internet IndiHome',
-      );
-      expect(paidIndihome.isPaidFor(now), isTrue);
+      expect(controller.monthlyExpense, 20000 + 375000);
 
       // 4. Pay Yourself First: 20% of Gaji income auto-allocated to Dana Darurat goal.
       await controller.addGoal(
@@ -741,7 +523,7 @@ void main() {
       final updatedGoal = controller.goals.firstWhere((g) => g.id == goal.id);
       expect(updatedGoal.currentAmount, 3000000);
 
-      // 2. Monthly Closing Recap & Archive for previous month (October 2026).
+      // 5. Monthly Closing Recap & Archive for previous month (October 2026).
       final prevOct = DateTime(2026, 10, 15, 10, 0);
       await controller.addTransaction(
         TransactionModel(
@@ -778,12 +560,12 @@ void main() {
         8000000,
       );
 
-      // 3. Weekly rolling Auto-Backup JSON (runs once, then skips within 7 days).
+      // 6. Weekly rolling Auto-Backup JSON (runs once, then skips within 7 days).
       final backupPath = await controller.runAutoBackupIfDue();
       expect(backupPath, contains('SakuProWann_AutoBackup_20261126.json'));
       expect(await controller.runAutoBackupIfDue(), isNull);
 
-      // 4. Backup JSON round-trip preserves learned merchants, recurring incomes, and auto-save goal rules.
+      // 7. Backup JSON round-trip preserves learned merchants, recurring incomes, and auto-save goal rules.
       await controller.addRecurringIncome(
         name: 'Gaji Tetap',
         amount: 8500000,

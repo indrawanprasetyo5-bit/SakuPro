@@ -7,7 +7,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import androidx.core.app.ActivityCompat
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -16,7 +15,6 @@ import java.io.File
 import java.io.FileOutputStream
 
 class MainActivity : FlutterFragmentActivity() {
-    private var notificationChannel: MethodChannel? = null
     private var automationChannel: MethodChannel? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -100,77 +98,6 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-
-        val notifChannel = MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            NOTIFICATION_CHANNEL
-        )
-        notificationChannel = notifChannel
-
-        notifChannel.setMethodCallHandler { call, result ->
-            when (call.method) {
-                "isPermissionGranted" -> {
-                    result.success(
-                        SakuNotificationListenerService.isPermissionGranted(applicationContext)
-                    )
-                }
-
-                "openNotificationAccessSettings" -> {
-                    try {
-                        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        startActivity(intent)
-                        result.success(true)
-                    } catch (e: Exception) {
-                        result.error("OPEN_SETTINGS_FAILED", e.message, null)
-                    }
-                }
-
-                "openAppDetailsSettings" -> {
-                    try {
-                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.fromParts("package", packageName, null)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        startActivity(intent)
-                        result.success(true)
-                    } catch (e: Exception) {
-                        result.error("OPEN_APP_DETAILS_FAILED", e.message, null)
-                    }
-                }
-
-                "updateConfig" -> {
-                    val enabled = call.argument<Boolean>("enabled") ?: false
-                    val packages = call.argument<List<String>>("packages") ?: emptyList()
-                    SakuNotificationListenerService.updateConfig(
-                        applicationContext,
-                        enabled,
-                        packages
-                    )
-                    result.success(true)
-                }
-
-                "drainPendingEvents" -> {
-                    result.success(
-                        SakuNotificationListenerService.drainPendingEvents(applicationContext)
-                    )
-                }
-
-                "readRecentLogs" -> {
-                    result.success(
-                        SakuNotificationListenerService.readRecentLogs(applicationContext)
-                    )
-                }
-
-                "clearRecentLogs" -> {
-                    SakuNotificationListenerService.clearRecentLogs(applicationContext)
-                    result.success(true)
-                }
-
-                else -> result.notImplemented()
-            }
-        }
 
         val autoChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -280,12 +207,6 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
-
-        SakuNotificationListenerService.onEventCaptured = {
-            mainHandler.post {
-                notificationChannel?.invokeMethod("onPendingEventsAvailable", null)
-            }
-        }
     }
 
     override fun onRequestPermissionsResult(
@@ -302,16 +223,12 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onDestroy() {
-        SakuNotificationListenerService.onEventCaptured = null
-        notificationChannel?.setMethodCallHandler(null)
-        notificationChannel = null
         automationChannel?.setMethodCallHandler(null)
         automationChannel = null
         super.onDestroy()
     }
 
     companion object {
-        private const val NOTIFICATION_CHANNEL = "id.sakupro.saku_pro/notification_listener"
         private const val AUTOMATION_CHANNEL = "id.sakupro.saku_pro/automation"
         private const val REQ_POST_NOTIFICATIONS = 9031
     }

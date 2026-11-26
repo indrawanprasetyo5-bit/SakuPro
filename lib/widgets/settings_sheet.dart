@@ -265,17 +265,15 @@ class _SettingsSectionPanelState extends State<SettingsSectionPanel> {
                   vertical: 4,
                 ),
                 leading: Icon(
-                  Icons.qr_code_scanner_rounded,
+                  Icons.event_repeat_rounded,
                   color: saku.brandInteractive,
                 ),
                 title: Text(
-                  'Auto-Catat QRIS & Bank',
+                  'Pusat Otomatisasi',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 subtitle: Text(
-                  ctrl.autoCaptureEnabled
-                      ? 'Aktif (${ctrl.enabledNotificationSourceIds.length} aplikasi · ${ctrl.autoCaptureMode.label})'
-                      : 'Catat otomatis QRIS SeaBank, DANA, GoPay, Bank Jago',
+                  'Share Resi, Auto-Gaji, Auto-Pay, Auto-Save Goal, Auto-Backup',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 trailing: Icon(

@@ -865,7 +865,7 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
           Expanded(
             child: _ModeTabButton(
               label: 'Ketik Cepat (3 dtk)',
-              icon: Icons.bolt_rounded,
+              icon: Icons.edit_note_rounded,
               selected: _mode == InputEntryMode.smartNlp,
               onTap: () => setState(() {
                 _mode = InputEntryMode.smartNlp;
