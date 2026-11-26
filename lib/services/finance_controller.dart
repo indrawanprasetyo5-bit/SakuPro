@@ -85,6 +85,72 @@ class MonthlyAnalyticsReport {
   final List<String> insights;
 }
 
+class QuickHabitPreset {
+  const QuickHabitPreset({
+    required this.label,
+    required this.phrase,
+    this.isLearned = false,
+  });
+
+  final String label;
+  final String phrase;
+  final bool isLearned;
+}
+
+class MonthlyTrendPoint {
+  const MonthlyTrendPoint({
+    required this.month,
+    required this.shortLabel,
+    required this.income,
+    required this.expense,
+  });
+
+  final DateTime month;
+  final String shortLabel;
+  final int income;
+  final int expense;
+}
+
+class WeekdaySpendBucket {
+  const WeekdaySpendBucket({
+    required this.weekday,
+    required this.shortLabel,
+    required this.fullLabel,
+    required this.amount,
+    required this.count,
+  });
+
+  final int weekday;
+  final String shortLabel;
+  final String fullLabel;
+  final int amount;
+  final int count;
+}
+
+class WeekdaySpendPattern {
+  const WeekdaySpendPattern({
+    required this.buckets,
+    required this.peakBucket,
+    required this.totalExpense,
+  });
+
+  final List<WeekdaySpendBucket> buckets;
+  final WeekdaySpendBucket? peakBucket;
+  final int totalExpense;
+}
+
+class SplitBillFriend {
+  const SplitBillFriend({
+    required this.name,
+    required this.shareAmount,
+    this.phone = '',
+  });
+
+  final String name;
+  final int shareAmount;
+  final String phone;
+}
+
 class FinanceController extends ChangeNotifier {
   FinanceController({this._customStore, DateTime Function()? clock})
     : _clock = clock ?? DateTime.now;
@@ -1699,4 +1765,281 @@ class FinanceController extends ChangeNotifier {
     notifyListeners();
     return _lastAutoBackupPath;
   }
+
+  static const List<String> _trendShortMonths = <String>[
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'Mei',
+    'Jun',
+    'Jul',
+    'Agu',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Des',
+  ];
+
+  static const List<(String, String)> _weekdayLabels = <(String, String)>[
+    ('Sen', 'Senin'),
+    ('Sel', 'Selasa'),
+    ('Rab', 'Rabu'),
+    ('Kam', 'Kamis'),
+    ('Jum', 'Jumat'),
+    ('Sab', 'Sabtu'),
+    ('Min', 'Minggu'),
+  ];
+
+  String _preferredQuickWalletSlug() {
+    if (_wallets.isEmpty) {
+      return '';
+    }
+    for (final w in _wallets) {
+      final lower = w.name.toLowerCase();
+      if (lower.contains('gopay') || lower.contains('dana')) {
+        return lower;
+      }
+    }
+    return _wallets.first.name.toLowerCase();
+  }
+
+  List<QuickHabitPreset> get smartQuickPresets {
+    final cutoff = now.subtract(const Duration(days: 30));
+    final grouped = <String, _HabitAccumulator>{};
+
+    for (final tx in _transactions) {
+      if (tx.kind != TransactionKind.expense ||
+          tx.amount <= 0 ||
+          tx.transactionDate.isBefore(cutoff)) {
+        continue;
+      }
+      final title = tx.displayTitle.trim();
+      final key = _normalizeMerchantKey(title);
+      if (key.length < 2) {
+        continue;
+      }
+      final walletName = walletById(tx.walletId)?.name ?? '';
+      final existing = grouped[key];
+      if (existing == null) {
+        grouped[key] = _HabitAccumulator(
+          title: title,
+          amount: tx.amount,
+          walletName: walletName,
+          count: 1,
+          latest: tx.transactionDate,
+        );
+      } else {
+        existing.count += 1;
+        if (tx.transactionDate.isAfter(existing.latest)) {
+          existing.latest = tx.transactionDate;
+          existing.amount = tx.amount;
+          existing.walletName = walletName;
+        }
+      }
+    }
+
+    final ranked = grouped.values.toList()
+      ..sort((a, b) {
+        final byCount = b.count.compareTo(a.count);
+        if (byCount != 0) {
+          return byCount;
+        }
+        return b.latest.compareTo(a.latest);
+      });
+
+    final results = <QuickHabitPreset>[];
+    final seenLabels = <String>{};
+
+    for (final item in ranked.take(4)) {
+      final compactAmt = _formatPresetAmount(item.amount);
+      final shortTitle = item.title.length > 14
+          ? '${item.title.substring(0, 14).trim()}...'
+          : item.title;
+      final label = '$shortTitle $compactAmt';
+      final walletPart = item.walletName.trim().toLowerCase();
+      final phrase = walletPart.isEmpty
+          ? '${item.title} ${item.amount}'
+          : '${item.title} ${item.amount} $walletPart';
+      if (seenLabels.add(label.toLowerCase())) {
+        results.add(
+          QuickHabitPreset(label: label, phrase: phrase, isLearned: true),
+        );
+      }
+    }
+
+    final fallbackSlug = _preferredQuickWalletSlug();
+    const defaults = <(String, String)>[
+      ('Ngopi 25rb', 'kopi 25rb'),
+      ('Makan 35rb', 'makan 35rb'),
+      ('Ojek 15rb', 'ojek 15rb'),
+      ('Jajan 20rb', 'jajan 20rb'),
+    ];
+    for (final item in defaults) {
+      if (results.length >= 4) {
+        break;
+      }
+      if (seenLabels.add(item.$1.toLowerCase())) {
+        final phrase = fallbackSlug.isEmpty
+            ? item.$2
+            : '${item.$2} $fallbackSlug';
+        results.add(
+          QuickHabitPreset(label: item.$1, phrase: phrase, isLearned: false),
+        );
+      }
+    }
+
+    return results;
+  }
+
+  static String _formatPresetAmount(int amount) {
+    if (amount >= 1000000) {
+      final jt = amount / 1000000;
+      return '${jt == jt.roundToDouble() ? jt.toInt() : jt.toStringAsFixed(1)}jt';
+    }
+    if (amount >= 1000) {
+      final rb = amount / 1000;
+      return '${rb == rb.roundToDouble() ? rb.toInt() : rb.toStringAsFixed(1)}rb';
+    }
+    return '$amount';
+  }
+
+  List<MonthlyTrendPoint> buildSixMonthTrend(DateTime anchorMonth) {
+    final points = <MonthlyTrendPoint>[];
+    for (var offset = 5; offset >= 0; offset--) {
+      final m = DateTime(anchorMonth.year, anchorMonth.month - offset);
+      final monthTx = transactionsForMonth(m);
+      var income = 0;
+      var expense = 0;
+      for (final tx in monthTx) {
+        if (tx.kind == TransactionKind.income) {
+          income += tx.amount;
+        } else if (tx.kind == TransactionKind.expense) {
+          expense += tx.amount;
+        }
+      }
+      points.add(
+        MonthlyTrendPoint(
+          month: m,
+          shortLabel: _trendShortMonths[(m.month - 1).clamp(0, 11)],
+          income: income,
+          expense: expense,
+        ),
+      );
+    }
+    return points;
+  }
+
+  WeekdaySpendPattern buildWeekdaySpendPattern(DateTime targetMonth) {
+    final totals = List<int>.filled(7, 0);
+    final counts = List<int>.filled(7, 0);
+    var totalExpense = 0;
+
+    for (final tx in transactionsForMonth(targetMonth)) {
+      if (tx.kind != TransactionKind.expense) {
+        continue;
+      }
+      final idx = (tx.transactionDate.weekday - 1).clamp(0, 6);
+      totals[idx] += tx.amount;
+      counts[idx] += 1;
+      totalExpense += tx.amount;
+    }
+
+    final buckets = List<WeekdaySpendBucket>.generate(7, (i) {
+      return WeekdaySpendBucket(
+        weekday: i + 1,
+        shortLabel: _weekdayLabels[i].$1,
+        fullLabel: _weekdayLabels[i].$2,
+        amount: totals[i],
+        count: counts[i],
+      );
+    });
+
+    WeekdaySpendBucket? peak;
+    for (final b in buckets) {
+      if (b.amount > 0 && (peak == null || b.amount > peak.amount)) {
+        peak = b;
+      }
+    }
+
+    return WeekdaySpendPattern(
+      buckets: buckets,
+      peakBucket: peak,
+      totalExpense: totalExpense,
+    );
+  }
+
+  Future<int> recordSplitBill({
+    required String title,
+    required int walletId,
+    required String category,
+    required int myShare,
+    required List<SplitBillFriend> friends,
+  }) async {
+    final store = _store;
+    if (store == null) {
+      return 0;
+    }
+
+    final cleanTitle = title.trim().isEmpty ? 'Patungan' : title.trim();
+    final timestamp = now;
+
+    if (myShare > 0) {
+      final tx = TransactionModel(
+        kind: TransactionKind.expense,
+        amount: myShare,
+        category: category,
+        note: 'Patungan: $cleanTitle',
+        walletId: walletId,
+        transactionDate: timestamp,
+        createdAt: timestamp,
+      );
+      await store.addTransaction(tx);
+      await _learnFromTransaction(tx);
+    }
+
+    var createdDebts = 0;
+    for (final friend in friends) {
+      final name = friend.name.trim();
+      if (name.isEmpty || friend.shareAmount <= 0) {
+        continue;
+      }
+      await store.addDebt(
+        DebtModel(
+          personName: name,
+          phone: friend.phone.trim(),
+          type: DebtKind.receivable.code,
+          principalAmount: friend.shareAmount,
+          remainingAmount: friend.shareAmount,
+          note: 'Patungan: $cleanTitle',
+          status: 'open',
+          createdAt: timestamp,
+        ),
+      );
+      createdDebts++;
+    }
+
+    await _reloadData();
+    if (myShare > 0) {
+      unawaited(_evaluateBudgetAlertsAfterExpense(category));
+    }
+    notifyListeners();
+    return createdDebts;
+  }
+}
+
+class _HabitAccumulator {
+  _HabitAccumulator({
+    required this.title,
+    required this.amount,
+    required this.walletName,
+    required this.count,
+    required this.latest,
+  });
+
+  final String title;
+  int amount;
+  String walletName;
+  int count;
+  DateTime latest;
 }

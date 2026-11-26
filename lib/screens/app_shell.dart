@@ -550,34 +550,11 @@ class _QuickAddDockBarState extends State<_QuickAddDockBar> {
     }
   }
 
-  static const List<(String, String)> _quickPresets = <(String, String)>[
-    ('Ngopi 25rb', 'kopi 25rb'),
-    ('Makan 35rb', 'makan 35rb'),
-    ('Ojek 15rb', 'ojek 15rb'),
-    ('Jajan 20rb', 'jajan 20rb'),
-  ];
-
-  String _preferredWalletSlug() {
-    final wallets = widget.controller.wallets;
-    if (wallets.isEmpty) {
-      return '';
-    }
-    for (final w in wallets) {
-      final lower = w.name.toLowerCase();
-      if (lower.contains('gopay') || lower.contains('dana')) {
-        return lower;
-      }
-    }
-    return wallets.first.name.toLowerCase();
-  }
-
   void _applyPreset(String phrase) {
     HapticFeedback.selectionClick();
-    final slug = _preferredWalletSlug();
-    final composed = slug.isEmpty ? phrase : '$phrase $slug';
-    widget.textController.text = composed;
+    widget.textController.text = phrase;
     widget.textController.selection = TextSelection.collapsed(
-      offset: composed.length,
+      offset: phrase.length,
     );
   }
 
@@ -588,6 +565,9 @@ class _QuickAddDockBarState extends State<_QuickAddDockBar> {
     final parsed = widget.isTyping && raw.isNotEmpty
         ? QuickInputParser.parse(raw, widget.controller.wallets)
         : null;
+    final presets = widget.isTyping && raw.isEmpty
+        ? widget.controller.smartQuickPresets
+        : const <QuickHabitPreset>[];
 
     return Container(
       decoration: BoxDecoration(
@@ -604,19 +584,26 @@ class _QuickAddDockBarState extends State<_QuickAddDockBar> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          if (widget.isTyping && raw.isEmpty)
+          if (presets.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: _quickPresets.map((preset) {
+                  children: presets.map((preset) {
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: TactilePressScale(
                         child: ActionChip(
+                          avatar: preset.isLearned
+                              ? Icon(
+                                  Icons.history_rounded,
+                                  size: 14,
+                                  color: saku.brandInteractive,
+                                )
+                              : null,
                           label: Text(
-                            preset.$1,
+                            preset.label,
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -624,7 +611,7 @@ class _QuickAddDockBarState extends State<_QuickAddDockBar> {
                               fontFeatures: AppTheme.tabularNums,
                             ),
                           ),
-                          onPressed: () => _applyPreset(preset.$2),
+                          onPressed: () => _applyPreset(preset.phrase),
                         ),
                       ),
                     );

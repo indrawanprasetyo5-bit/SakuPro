@@ -8,6 +8,7 @@ import '../services/whatsapp_helper.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
+import 'split_bill_sheet.dart';
 
 class PlanDebtsTab extends StatefulWidget {
   const PlanDebtsTab({super.key, required this.controller});
@@ -145,16 +146,42 @@ class _PlanDebtsTabState extends State<PlanDebtsTab> {
                   ),
                 ],
               ),
-              FilledButton.icon(
-                onPressed: () => _DebtFormSheet.show(
-                  context,
-                  controller: widget.controller,
-                  initialKind: _activeFilter,
-                ),
-                icon: const Icon(Icons.add_rounded, size: 19),
-                label: Text(
-                  isReceivableView ? 'Catat Piutang' : 'Catat Hutang',
-                ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  if (isReceivableView)
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final count = await SplitBillSheet.show(
+                          context,
+                          controller: widget.controller,
+                        );
+                        if (count != null && count > 0 && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Patungan tersimpan ($count piutang baru).',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.groups_outlined, size: 18),
+                      label: const Text('Patungan'),
+                    ),
+                  FilledButton.icon(
+                    onPressed: () => _DebtFormSheet.show(
+                      context,
+                      controller: widget.controller,
+                      initialKind: _activeFilter,
+                    ),
+                    icon: const Icon(Icons.add_rounded, size: 19),
+                    label: Text(
+                      isReceivableView ? 'Catat Piutang' : 'Catat Hutang',
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

@@ -633,5 +633,61 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.monthlyBudget, 5000000);
     });
+
+    test('v1.5.0 upgrades: dynamic habit presets, 6-month trend, weekday pattern, and Split Bill', () async {
+      final now = DateTime(2026, 11, 26, 15, 0); // Thursday
+      final controller = FinanceController(
+        customStore: InMemorySakuStore(),
+        clock: () => now,
+      );
+      await controller.initialize();
+      final gopay = controller.wallets.firstWhere((w) => w.name == 'GoPay');
+
+      // Record repeated habit so smartQuickPresets ranks it #1.
+      for (var i = 0; i < 3; i++) {
+        await controller.addTransaction(
+          TransactionModel(
+            kind: TransactionKind.expense,
+            amount: 24000,
+            category: 'Ngopi',
+            note: 'Kopi Kenangan',
+            walletId: gopay.id!,
+            transactionDate: now.subtract(Duration(days: i)),
+            createdAt: now,
+          ),
+        );
+      }
+
+      final presets = controller.smartQuickPresets;
+      expect(presets.length, 4);
+      expect(presets.first.isLearned, isTrue);
+      expect(presets.first.label, contains('Kopi Kenangan'));
+
+      // 6-month trend & weekday pattern.
+      final trend = controller.buildSixMonthTrend(DateTime(2026, 11));
+      expect(trend.length, 6);
+      expect(trend.last.expense, 72000);
+
+      final weekday = controller.buildWeekdaySpendPattern(DateTime(2026, 11));
+      expect(weekday.buckets.length, 7);
+      expect(weekday.peakBucket, isNotNull);
+      expect(weekday.totalExpense, 72000);
+
+      // Split Bill records myShare as expense and friends as Receivables.
+      final debtCount = await controller.recordSplitBill(
+        title: 'Sate Taichan',
+        walletId: gopay.id!,
+        category: 'Makan & Minum',
+        myShare: 50000,
+        friends: const <SplitBillFriend>[
+          SplitBillFriend(name: 'Dimas', phone: '08123456789', shareAmount: 50000),
+          SplitBillFriend(name: 'Nadia', phone: '08129876543', shareAmount: 50000),
+        ],
+      );
+      expect(debtCount, 2);
+      expect(controller.monthlyExpense, 72000 + 50000);
+      expect(controller.activeReceivablesTotal, 100000);
+      expect(controller.debts.length, 2);
+    });
   });
 }

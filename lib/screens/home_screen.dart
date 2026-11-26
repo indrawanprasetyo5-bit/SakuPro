@@ -13,6 +13,7 @@ import '../widgets/budget_dialog.dart';
 import '../widgets/luxury_widgets.dart';
 import '../widgets/quick_input_sheet.dart';
 import '../widgets/settings_sheet.dart';
+import '../widgets/split_bill_sheet.dart';
 import '../widgets/transaction_tile.dart';
 import '../widgets/transactions_history_sheet.dart';
 
@@ -283,6 +284,28 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         actions: <Widget>[
+          IconButton(
+            tooltip: 'Split Bill / Patungan',
+            onPressed: () async {
+              final count = await SplitBillSheet.show(
+                context,
+                controller: controller,
+              );
+              if (count != null && count > 0 && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Patungan tercatat · $count piutang teman siap ditagih di tab Rencana.',
+                    ),
+                  ),
+                );
+              }
+            },
+            icon: Icon(
+              Icons.groups_outlined,
+              color: saku.textPrimary,
+            ),
+          ),
           IconButton(
             tooltip: 'Pusat Otomatisasi',
             onPressed: () =>

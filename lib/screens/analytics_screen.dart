@@ -118,6 +118,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final activeMonth = _effectiveMonth();
     final months = ctrl.selectableMonths;
     final report = ctrl.buildMonthlyReport(activeMonth);
+    final sixMonthTrend = ctrl.buildSixMonthTrend(activeMonth);
+    final weekdayPattern = ctrl.buildWeekdaySpendPattern(activeMonth);
 
     return Scaffold(
       appBar: AppBar(
@@ -194,6 +196,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
           const SizedBox(height: 14),
           _InsightsCard(insights: report.insights),
+          const SizedBox(height: 14),
+          _SixMonthTrendCard(
+            points: sixMonthTrend,
+            hideBalance: hidden,
+          ),
+          const SizedBox(height: 14),
+          _WeekdayPatternCard(
+            pattern: weekdayPattern,
+            hideBalance: hidden,
+          ),
           const SizedBox(height: 14),
           _CategoryChartCard(
             report: report,
@@ -704,5 +716,328 @@ class _CategoryDonutPainter extends CustomPainter {
     return oldDelegate.slices != slices ||
         oldDelegate.trackColor != trackColor ||
         oldDelegate.progress != progress;
+  }
+}
+
+class _SixMonthTrendCard extends StatefulWidget {
+  const _SixMonthTrendCard({
+    required this.points,
+    required this.hideBalance,
+  });
+
+  final List<MonthlyTrendPoint> points;
+  final bool hideBalance;
+
+  @override
+  State<_SixMonthTrendCard> createState() => _SixMonthTrendCardState();
+}
+
+class _SixMonthTrendCardState extends State<_SixMonthTrendCard> {
+  int? _selectedIdx;
+
+  @override
+  Widget build(BuildContext context) {
+    final saku = context.saku;
+    final disableAnim = MediaQuery.disableAnimationsOf(context);
+    var maxValue = 0;
+    for (final p in widget.points) {
+      maxValue = math.max(maxValue, math.max(p.income, p.expense));
+    }
+
+    final maxIdx = math.max(0, widget.points.length - 1);
+    final idx = (_selectedIdx ?? maxIdx).clamp(0, maxIdx).toInt();
+    final activePoint = widget.points.isNotEmpty ? widget.points[idx] : null;
+
+    return LuxurySurfaceCard(
+      radius: SakuRadius.lg,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  'Tren 6 Bulan Terakhir',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              _LegendDot(color: saku.income, label: 'Masuk'),
+              const SizedBox(width: 10),
+              _LegendDot(color: saku.expense, label: 'Keluar'),
+            ],
+          ),
+          if (activePoint != null) ...<Widget>[
+            const SizedBox(height: 6),
+            Text(
+              '${activePoint.shortLabel} ${activePoint.month.year} · '
+              'Masuk ${IdrFormat.compact(activePoint.income, hidden: widget.hideBalance)} · '
+              'Keluar ${IdrFormat.compact(activePoint.expense, hidden: widget.hideBalance)}',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: saku.textSecondary,
+                fontFeatures: AppTheme.tabularNums,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          if (maxValue <= 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Text(
+                'Catat transaksi di beberapa bulan buat lihat tren arus kasmu.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            )
+          else
+            TweenAnimationBuilder<double>(
+              key: ValueKey<String>(
+                widget.points
+                    .map((e) => '${e.month.month}:${e.income}:${e.expense}')
+                    .join('|'),
+              ),
+              tween: Tween<double>(begin: disableAnim ? 1.0 : 0.0, end: 1.0),
+              duration: disableAnim
+                  ? Duration.zero
+                  : const Duration(milliseconds: 420),
+              curve: Curves.easeOutCubic,
+              builder: (context, progress, _) {
+                return SizedBox(
+                  height: 132,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: List<Widget>.generate(widget.points.length, (i) {
+                      final p = widget.points[i];
+                      final selected = i == idx;
+                      final incH = maxValue <= 0
+                          ? 0.0
+                          : (p.income / maxValue) * 92.0 * progress;
+                      final expH = maxValue <= 0
+                          ? 0.0
+                          : (p.expense / maxValue) * 92.0 * progress;
+
+                      return Expanded(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _selectedIdx = i);
+                          },
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: <Widget>[
+                              SizedBox(
+                                height: 96,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: <Widget>[
+                                    Container(
+                                      width: 10,
+                                      height: math.max(
+                                        p.income > 0 ? 4.0 : 2.0,
+                                        incH,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: p.income > 0
+                                            ? saku.income.withValues(
+                                                alpha: selected ? 1.0 : 0.55,
+                                              )
+                                            : saku.surfaceElevated,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Container(
+                                      width: 10,
+                                      height: math.max(
+                                        p.expense > 0 ? 4.0 : 2.0,
+                                        expH,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: p.expense > 0
+                                            ? saku.expense.withValues(
+                                                alpha: selected ? 1.0 : 0.55,
+                                              )
+                                            : saku.surfaceElevated,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? saku.surfaceElevated
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  p.shortLabel,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: selected
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                    color: selected
+                                        ? saku.textPrimary
+                                        : saku.textMuted,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+            color: context.saku.textMuted,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WeekdayPatternCard extends StatelessWidget {
+  const _WeekdayPatternCard({
+    required this.pattern,
+    required this.hideBalance,
+  });
+
+  final WeekdaySpendPattern pattern;
+  final bool hideBalance;
+
+  @override
+  Widget build(BuildContext context) {
+    final saku = context.saku;
+    final disableAnim = MediaQuery.disableAnimationsOf(context);
+    final peak = pattern.peakBucket;
+    final maxAmt = peak?.amount ?? 0;
+
+    return LuxurySurfaceCard(
+      radius: SakuRadius.lg,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Pola Pengeluaran Harian',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            peak != null
+                ? 'Paling boros di hari ${peak.fullLabel} (${IdrFormat.compact(peak.amount, hidden: hideBalance)} · ${peak.count}x transaksi).'
+                : 'Belum ada data pengeluaran untuk pola harian di bulan ini.',
+            style: TextStyle(
+              fontSize: 12.5,
+              color: saku.textSecondary,
+              fontFeatures: AppTheme.tabularNums,
+            ),
+          ),
+          if (maxAmt > 0) ...<Widget>[
+            const SizedBox(height: 16),
+            TweenAnimationBuilder<double>(
+              key: ValueKey<int>(pattern.totalExpense),
+              tween: Tween<double>(begin: disableAnim ? 1.0 : 0.0, end: 1.0),
+              duration: disableAnim
+                  ? Duration.zero
+                  : const Duration(milliseconds: 420),
+              curve: Curves.easeOutCubic,
+              builder: (context, progress, _) {
+                return SizedBox(
+                  height: 102,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: pattern.buckets.map((bucket) {
+                      final isPeak =
+                          peak != null && bucket.weekday == peak.weekday;
+                      final ratio = maxAmt <= 0 ? 0.0 : bucket.amount / maxAmt;
+                      final barH = math.max(
+                        bucket.amount > 0 ? 6.0 : 3.0,
+                        ratio * 68.0 * progress,
+                      );
+                      return Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: <Widget>[
+                            Container(
+                              width: 18,
+                              height: barH,
+                              decoration: BoxDecoration(
+                                color: bucket.amount == 0
+                                    ? saku.surfaceElevated
+                                    : isPeak
+                                    ? saku.expense
+                                    : saku.brandInteractive.withValues(
+                                        alpha: 0.55,
+                                      ),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              bucket.shortLabel,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: isPeak
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: isPeak
+                                    ? saku.expense
+                                    : saku.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
