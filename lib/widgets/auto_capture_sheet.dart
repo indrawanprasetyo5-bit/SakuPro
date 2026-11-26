@@ -456,7 +456,7 @@ class _AutoCaptureSheetState extends State<AutoCaptureSheet>
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Auto-Catat QRIS, Auto-Transfer, Kamus Merchant, Rutin, Alert & Widget (100% gratis & offline).',
+                            'Atur pencatatan otomatis untuk QRIS, transfer, gaji, tagihan, dan backup lokal.',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ],
@@ -548,7 +548,7 @@ class _AutoCaptureSheetState extends State<AutoCaptureSheet>
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         subtitle: Text(
-                          'Tangkap otomatis notifikasi SeaBank, DANA, GoPay, Bank Jago & bank lain.',
+                          'Tiap bayar QRIS di SeaBank, DANA, GoPay, atau Bank Jago, catatan langsung masuk sendiri.',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         value: ctrl.autoCaptureEnabled,
@@ -561,7 +561,7 @@ class _AutoCaptureSheetState extends State<AutoCaptureSheet>
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           subtitle: Text(
-                            'Satukan top-up/transfer antar dompetmu sendiri agar tidak dihitung pengeluaran ganda.',
+                            'Top-up atau pindah saldo antar dompetmu otomatis jadi Transfer, bukan pengeluaran.',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           value: ctrl.autoPairTransfers,
@@ -574,7 +574,7 @@ class _AutoCaptureSheetState extends State<AutoCaptureSheet>
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           subtitle: Text(
-                            'Otomatis tandai Tagihan lunas atau potong sisa Piutang/Hutang jika notifikasi bank cocok.',
+                            'Tagihan otomatis lunas dan sisa piutang langsung terpotong saat notifikasi bank cocok.',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           value: ctrl.autoReconcilePlan,

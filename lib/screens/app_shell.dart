@@ -106,7 +106,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       if (saved == true && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Transaksi dari bukti yang dibagikan tersimpan.'),
+            content: Text('Transaksi dari bukti transfer sudah tersimpan.'),
           ),
         );
       }
@@ -190,7 +190,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
     if (saved == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Transaksi berhasil dicatat.')),
+        const SnackBar(content: Text('Transaksi masuk buku kas.')),
       );
     }
   }
@@ -236,7 +236,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             children: <Widget>[
               CircularProgressIndicator(),
               SizedBox(height: 14),
-              Text('Menyiapkan brankas lokal SakuProWann...'),
+              Text('Membuka catatan keuanganmu...'),
             ],
           ),
         ),
@@ -334,7 +334,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               ),
               const VerticalDivider(width: 1),
               Expanded(
-                child: IndexedStack(index: _currentIndex, children: pages),
+                child: _SeamlessTabStack(
+                  currentIndex: _currentIndex,
+                  children: pages,
+                ),
               ),
             ],
           ),
@@ -345,7 +348,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final saku = context.saku;
 
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: pages),
+      body: _SeamlessTabStack(
+        currentIndex: _currentIndex,
+        children: pages,
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: Container(
         width: 60,
@@ -381,6 +387,42 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         currentIndex: _currentIndex,
         onTap: _selectTab,
       ),
+    );
+  }
+}
+
+class _SeamlessTabStack extends StatelessWidget {
+  const _SeamlessTabStack({
+    required this.currentIndex,
+    required this.children,
+  });
+
+  final int currentIndex;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final stack = IndexedStack(index: currentIndex, children: children);
+    final disableAnim = MediaQuery.disableAnimationsOf(context);
+    if (disableAnim) {
+      return stack;
+    }
+
+    return TweenAnimationBuilder<double>(
+      key: ValueKey<int>(currentIndex),
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      child: stack,
+      builder: (context, t, child) {
+        return Opacity(
+          opacity: 0.82 + (0.18 * t),
+          child: Transform.translate(
+            offset: Offset(0, 8.0 * (1.0 - t)),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }

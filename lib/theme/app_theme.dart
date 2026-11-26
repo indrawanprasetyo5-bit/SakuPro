@@ -223,9 +223,12 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
+        elevation: 6,
+        insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
         backgroundColor: isDark
             ? const Color(0xFF162235)
             : const Color(0xFF0A1715),
+        actionTextColor: const Color(0xFFDFB969),
         contentTextStyle: const TextStyle(
           fontFamily: fontFamily,
           color: Color(0xFFF3F7F6),
@@ -233,8 +236,14 @@ class AppTheme {
           fontWeight: FontWeight.w600,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
         ),
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+        },
       ),
       dividerTheme: DividerThemeData(
         color: palette.border,

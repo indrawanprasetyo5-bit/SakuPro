@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
@@ -40,9 +41,34 @@ class HomeScreen extends StatelessWidget {
     'Desember',
   ];
 
-  String _monthYearLabel(DateTime dt) {
+  String _greetingAndPeriod(DateTime dt) {
     final monthName = _bulanIndo[(dt.month - 1).clamp(0, 11)];
-    return '$monthName ${dt.year}';
+    final hour = dt.hour;
+    final greeting = hour < 11
+        ? 'Selamat pagi'
+        : hour < 15
+        ? 'Selamat siang'
+        : hour < 18
+        ? 'Selamat sore'
+        : 'Selamat malam';
+    return '$greeting · $monthName ${dt.year}';
+  }
+
+  Future<void> _handlePullToRefresh(BuildContext context) async {
+    HapticFeedback.lightImpact();
+    await controller.refreshNotificationPermission();
+    final recurring = await controller.runRecurringAutomations();
+    final captured = controller.autoCaptureEnabled
+        ? await controller.drainNativeNotifications()
+        : 0;
+    final totalNew = recurring.totalRecorded + captured;
+    if (context.mounted && totalNew > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$totalNew transaksi otomatis baru sudah tercatat.'),
+        ),
+      );
+    }
   }
 
   Future<void> _confirmDelete(
@@ -52,9 +78,9 @@ class HomeScreen extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Hapus Transaksi?'),
+        title: const Text('Hapus transaksi ini?'),
         content: Text(
-          'Transaksi "${tx.displayTitle}" sebesar ${IdrFormat.currency(tx.amount)} akan dihapus dan saldo dompet dikembalikan otomatis.',
+          '"${tx.displayTitle}" (${IdrFormat.currency(tx.amount)}) akan dihapus dan saldo dompet langsung dikembalikan.',
         ),
         actions: <Widget>[
           TextButton(
@@ -73,13 +99,22 @@ class HomeScreen extends StatelessWidget {
     );
 
     if (confirmed == true && tx.id != null && context.mounted) {
+      final deletedSnapshot = tx.copyWith(id: null);
       await controller.deleteTransaction(tx.id!);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Transaksi dihapus dan saldo diperbarui.'),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('"${tx.displayTitle}" dihapus.'),
+              action: SnackBarAction(
+                label: 'Urungkan',
+                onPressed: () {
+                  controller.addTransaction(deletedSnapshot);
+                },
+              ),
+            ),
+          );
       }
     }
   }
@@ -108,12 +143,12 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                'Scan Struk Belanja',
+                'Scan Struk atau Resi',
                 style: Theme.of(ctx).textTheme.titleLarge,
               ),
               const SizedBox(height: 4),
               Text(
-                'Ambil foto struk dengan jelas dan pencahayaan terang agar total harga terbaca akurat.',
+                'Foto struk belanja atau pilih screenshot resi Bank Jago, SeaBank, DANA, dan GoPay dari galeri.',
                 style: Theme.of(ctx).textTheme.bodyMedium,
               ),
               const SizedBox(height: 14),
@@ -154,7 +189,7 @@ class HomeScreen extends StatelessWidget {
     final saku = context.saku;
     final safe = controller.safeToSpend;
     final recentTx = controller.transactions.take(8).toList();
-    final periodLabel = _monthYearLabel(controller.now);
+    final periodLabel = _greetingAndPeriod(controller.now);
     final activeWalletCount = controller.wallets
         .where((w) => !w.excludeFromTotal)
         .length;
@@ -270,8 +305,12 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(width: 6),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 112),
+      body: RefreshIndicator(
+        color: saku.brandInteractive,
+        onRefresh: () => _handlePullToRefresh(context),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 112),
         children: <Widget>[
           WealthMetalCard(
             netWorth: controller.netWorth,
@@ -429,6 +468,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
         ],
+        ),
       ),
     );
   }
@@ -721,7 +761,7 @@ class _EmptyTransactionsCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Belum ada transaksi tercatat',
+                  'Buku kas bulan ini masih kosong',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -729,7 +769,7 @@ class _EmptyTransactionsCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Ketik kalimat singkat seperti "kopi 22rb gopay" atau pindai struk belanja langsung dari kamera. Semua diproses 100% offline di perangkatmu.',
+            'Ketik santai seperti "kopi 22rb gopay" atau foto struk dari kamera. Semua tercatat lokal di HP tanpa butuh internet.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),

@@ -7,6 +7,104 @@ import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
 
+class TactilePressScale extends StatefulWidget {
+  const TactilePressScale({
+    super.key,
+    required this.child,
+    this.pressedScale = 0.96,
+  });
+
+  final Widget child;
+  final double pressedScale;
+
+  @override
+  State<TactilePressScale> createState() => _TactilePressScaleState();
+}
+
+class _TactilePressScaleState extends State<TactilePressScale> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final disableAnim = MediaQuery.disableAnimationsOf(context);
+    if (disableAnim) {
+      return widget.child;
+    }
+
+    return Listener(
+      onPointerDown: (_) {
+        if (!_pressed) {
+          setState(() => _pressed = true);
+        }
+      },
+      onPointerUp: (_) {
+        if (_pressed) {
+          setState(() => _pressed = false);
+        }
+      },
+      onPointerCancel: (_) {
+        if (_pressed) {
+          setState(() => _pressed = false);
+        }
+      },
+      child: AnimatedScale(
+        scale: _pressed ? widget.pressedScale : 1.0,
+        duration: Duration(milliseconds: _pressed ? 85 : 180),
+        curve: _pressed ? Curves.easeOut : Curves.easeOutBack,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class AnimatedCurrencyText extends StatelessWidget {
+  const AnimatedCurrencyText({
+    super.key,
+    required this.amount,
+    required this.hidden,
+    required this.style,
+    this.signed = false,
+  });
+
+  final int amount;
+  final bool hidden;
+  final TextStyle style;
+  final bool signed;
+
+  @override
+  Widget build(BuildContext context) {
+    final disableAnim = MediaQuery.disableAnimationsOf(context);
+    if (hidden || disableAnim) {
+      return AnimatedSwitcher(
+        duration: disableAnim
+            ? Duration.zero
+            : const Duration(milliseconds: 180),
+        child: Text(
+          IdrFormat.currency(amount, hidden: hidden, signed: signed),
+          key: ValueKey<String>('$hidden-$amount'),
+          style: style,
+        ),
+      );
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: amount.toDouble()),
+      duration: const Duration(milliseconds: 340),
+      curve: Curves.easeOutCubic,
+      builder: (context, animatedValue, _) {
+        return Text(
+          IdrFormat.currency(
+            animatedValue.round(),
+            hidden: false,
+            signed: signed,
+          ),
+          style: style,
+        );
+      },
+    );
+  }
+}
+
 class LuxurySurfaceCard extends StatelessWidget {
   const LuxurySurfaceCard({
     super.key,
@@ -234,18 +332,15 @@ class WealthMetalCard extends StatelessWidget {
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      child: Text(
-                        IdrFormat.currency(netWorth, hidden: hidden),
-                        key: ValueKey<String>('$hidden-$netWorth'),
-                        style: const TextStyle(
-                          fontSize: 33,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.9,
-                          color: Colors.white,
-                          fontFeatures: AppTheme.tabularNums,
-                        ),
+                    child: AnimatedCurrencyText(
+                      amount: netWorth,
+                      hidden: hidden,
+                      style: const TextStyle(
+                        fontSize: 33,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.9,
+                        color: Colors.white,
+                        fontFeatures: AppTheme.tabularNums,
                       ),
                     ),
                   ),
@@ -417,54 +512,56 @@ class LuxuryQuickActionBar extends StatelessWidget {
         for (var i = 0; i < actions.length; i++) ...<Widget>[
           if (i > 0) const SizedBox(width: 10),
           Expanded(
-            child: Material(
-              color: saku.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: saku.border),
-              ),
-              elevation: isDark ? 0 : 0.4,
-              shadowColor: saku.cardShadow,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  actions[i].onTap();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 12,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: actions[i].softBg,
-                          borderRadius: BorderRadius.circular(12),
+            child: TactilePressScale(
+              child: Material(
+                color: saku.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: saku.border),
+                ),
+                elevation: isDark ? 0 : 0.4,
+                shadowColor: saku.cardShadow,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    actions[i].onTap();
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 12,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: actions[i].softBg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            actions[i].icon,
+                            size: 20,
+                            color: actions[i].color,
+                          ),
                         ),
-                        child: Icon(
-                          actions[i].icon,
-                          size: 20,
-                          color: actions[i].color,
+                        const SizedBox(height: 7),
+                        Text(
+                          actions[i].label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: saku.textPrimary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 7),
-                      Text(
-                        actions[i].label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: saku.textPrimary,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

@@ -279,12 +279,23 @@ class _CashflowComparisonCard extends StatelessWidget {
                 ],
               ),
               FilledButton.tonalIcon(
+                style: ButtonStyle(
+                  backgroundColor: WidgetStatePropertyAll<Color>(
+                    saku.brandSoft,
+                  ),
+                  foregroundColor: WidgetStatePropertyAll<Color>(
+                    saku.brandInteractive,
+                  ),
+                ),
                 onPressed: isExportingExcel ? null : onExportExcel,
                 icon: isExportingExcel
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 15,
                         height: 15,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: saku.brandInteractive,
+                        ),
                       )
                     : const Icon(Icons.table_view_outlined, size: 17),
                 label: const Text('Export Excel (.xlsx)'),

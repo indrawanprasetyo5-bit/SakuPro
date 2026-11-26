@@ -381,13 +381,15 @@ class FinanceController extends ChangeNotifier {
 
     final insights = <String>[];
     if (income == 0 && expense == 0) {
-      insights.add('Belum ada pemasukan atau pengeluaran pada periode ini.');
+      insights.add(
+        'Belum ada catatan keluar masuk bulan ini. Mulai dari transaksi pertamamu di tombol +.',
+      );
     } else {
       if (slices.isNotEmpty) {
         final top = slices.first;
         final topPct = (top.share * 100).round();
         insights.add(
-          'Pengeluaran terbesar ada pada kategori ${top.category} sebesar ${IdrFormat.currency(top.amount, hidden: _hideBalance)} ($topPct% dari total belanja).',
+          'Pos terbesar bulan ini ada di ${top.category}, total ${IdrFormat.currency(top.amount, hidden: _hideBalance)} ($topPct% dari seluruh belanja).',
         );
       }
 
@@ -396,20 +398,20 @@ class FinanceController extends ChangeNotifier {
         final rounded = deltaPct.abs().round();
         if (expense < prevExpense) {
           insights.add(
-            'Pengeluaran turun $rounded% dibanding bulan sebelumnya (lebih hemat ${IdrFormat.currency(diffAbs, hidden: _hideBalance)}).',
+            'Belanjamu turun $rounded% dari bulan lalu, lebih hemat ${IdrFormat.currency(diffAbs, hidden: _hideBalance)}.',
           );
         } else if (expense > prevExpense) {
           insights.add(
-            'Pengeluaran naik $rounded% dibanding bulan sebelumnya (bertambah ${IdrFormat.currency(diffAbs, hidden: _hideBalance)}).',
+            'Belanjamu naik $rounded% dibanding bulan lalu, bertambah ${IdrFormat.currency(diffAbs, hidden: _hideBalance)}.',
           );
         } else {
           insights.add(
-            'Total pengeluaran sama persis dengan bulan sebelumnya.',
+            'Total pengeluaranmu persis sama dengan bulan lalu.',
           );
         }
       } else if (expense > 0) {
         insights.add(
-          'Belum ada data pengeluaran bulan sebelumnya sebagai pembanding tren.',
+          'Bulan ini jadi acuan awalmu, bulan depan perbandingan tren otomatis muncul di sini.',
         );
       }
 
@@ -418,11 +420,11 @@ class FinanceController extends ChangeNotifier {
         final pctRounded = savingsPct.round();
         if (net >= 0) {
           insights.add(
-            'Rasio tabungan periode ini mencapai $pctRounded% (surplus ${IdrFormat.currency(net, hidden: _hideBalance)}).',
+            'Kamu menyisihkan $pctRounded% dari pemasukan bulan ini dengan surplus ${IdrFormat.currency(net, hidden: _hideBalance)}.',
           );
         } else {
           insights.add(
-            'Pengeluaran melampaui pemasukan sebesar ${IdrFormat.currency(net.abs(), hidden: _hideBalance)} ($pctRounded%).',
+            'Pengeluaran bulan ini melebihi pemasukan sebesar ${IdrFormat.currency(net.abs(), hidden: _hideBalance)}.',
           );
         }
       }
