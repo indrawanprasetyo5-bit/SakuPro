@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../models/transaction_item.dart';
@@ -6,6 +7,7 @@ import '../services/finance_controller.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
+import '../widgets/luxury_widgets.dart';
 import '../widgets/quick_input_sheet.dart';
 import '../widgets/wallet_form_sheet.dart';
 
@@ -51,41 +53,58 @@ class WalletsScreen extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 108),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 112),
         children: <Widget>[
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: saku.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: saku.border),
-            ),
+          LuxurySurfaceCard(
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  'Total Seluruh Dompet',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: saku.textMuted,
+                Row(
+                  children: <Widget>[
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: saku.brandInteractive,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Total Seluruh Dompet',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: saku.textMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    IdrFormat.currency(
+                      controller.totalAllWallets,
+                      hidden: hidden,
+                    ),
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.7,
+                      color: saku.textPrimary,
+                      fontFeatures: AppTheme.tabularNums,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  IdrFormat.currency(
-                    controller.totalAllWallets,
-                    hidden: hidden,
-                  ),
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                    color: saku.textPrimary,
-                    fontFeatures: AppTheme.tabularNums,
-                  ),
-                ),
-                if (controller.totalAllWallets != controller.netWorth) ...<Widget>[
+                if (controller.totalAllWallets !=
+                    controller.netWorth) ...<Widget>[
                   const SizedBox(height: 4),
                   Text(
                     'Saldo bersih aktif: ${IdrFormat.currency(controller.netWorth, hidden: hidden)}',
@@ -147,13 +166,15 @@ class WalletsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 22),
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: <Widget>[
-              Expanded(
-                child: Text(
-                  'Daftar Dompet (${wallets.length})',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+              Text(
+                'Daftar Dompet (${wallets.length})',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
               Text(
                 'Ketuk dompet untuk edit',
@@ -196,7 +217,7 @@ class WalletsScreen extends StatelessWidget {
                 }
               },
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 11),
           ],
         ],
       ),
@@ -220,110 +241,143 @@ class _WalletCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final saku = context.saku;
+    final isDark = context.isDarkMode;
 
-    return Material(
-      color: saku.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: saku.border),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onEdit,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: wallet.color.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: isDark
+            ? null
+            : <BoxShadow>[
+                BoxShadow(
+                  color: saku.cardShadow,
+                  offset: const Offset(0, 3),
+                  blurRadius: 12,
                 ),
-                child: Icon(wallet.icon, color: wallet.color, size: 22),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Flexible(
-                          child: Text(
-                            wallet.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        if (wallet.excludeFromTotal) ...<Widget>[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: saku.surfaceMuted,
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: Text(
-                              'Terpisah',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                color: saku.textMuted,
-                              ),
-                            ),
-                          ),
-                        ],
+              ],
+      ),
+      child: Material(
+        color: saku.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: saku.border),
+        ),
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onEdit();
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        wallet.color.withValues(alpha: 0.22),
+                        wallet.color.withValues(alpha: 0.08),
                       ],
                     ),
-                    const SizedBox(height: 3),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: wallet.color.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Icon(wallet.icon, color: wallet.color, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Flexible(
+                            child: Text(
+                              wallet.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          if (wallet.excludeFromTotal) ...<Widget>[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: saku.surfaceMuted,
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                'Terpisah',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: saku.textMuted,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        wallet.kind.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: saku.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: <Widget>[
                     Text(
-                      wallet.kind.label,
-                      style: TextStyle(fontSize: 12.5, color: saku.textMuted),
+                      IdrFormat.currency(wallet.balance, hidden: hideBalance),
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                        color: wallet.balance < 0
+                            ? saku.expense
+                            : saku.textPrimary,
+                        fontFeatures: AppTheme.tabularNums,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Edit saldo',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: saku.brandInteractive,
+                      ),
                     ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: <Widget>[
-                  Text(
-                    IdrFormat.currency(wallet.balance, hidden: hideBalance),
-                    style: TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w700,
-                      color: wallet.balance < 0
-                          ? saku.expense
-                          : saku.textPrimary,
-                      fontFeatures: AppTheme.tabularNums,
-                    ),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Catat transaksi di ${wallet.name}',
+                  onPressed: onQuickRecord,
+                  icon: Icon(
+                    Icons.add_circle_outline_rounded,
+                    color: saku.textSecondary,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Edit saldo',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: saku.brandInteractive,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 6),
-              IconButton(
-                tooltip: 'Catat transaksi di ${wallet.name}',
-                onPressed: onQuickRecord,
-                icon: Icon(
-                  Icons.add_circle_outline_rounded,
-                  color: saku.textSecondary,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

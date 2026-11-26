@@ -1,4 +1,7 @@
+import 'dart:math' show Point;
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:saku_pro/db/database_helper.dart';
 import 'package:saku_pro/main.dart';
@@ -47,33 +50,117 @@ void main() {
     test('extracts merchant, total, and category from OCR receipt text', () {
       const sampleIndomaret = '''
         SELAMAT DATANG
-        INDOMARET POINT SUDIRMAN
+        PT. INDOMARCO PRISMATAMA
         JL. JEND SUDIRMAN NO 12
+        NPWP 01.337.994.6-092.000
         25/11/2026 14:22 KASIR: RINA
         ROTI TAWAR         16.500
         SUSU UHT 1L        21.000
         DETERJEN CAIR      27.000
         -------------------------
         HARGA JUAL         64.500
-        GRAND TOTAL        64.500
+        DISKON             -4.500
+        TOTAL              60.000
         TUNAI             100.000
-        KEMBALI            35.500
+        KEMBALI            40.000
+        CALL CENTER 1500280
       ''';
       final parsed = ReceiptOcrService.parseReceiptText(sampleIndomaret);
-      expect(parsed.merchantName, 'Indomaret Point Sudirman');
-      expect(parsed.totalAmount, 64500);
+      expect(parsed.merchantName, 'Indomaret');
+      expect(parsed.totalAmount, 60000);
       expect(parsed.suggestedCategory, 'Belanja');
 
-      const sampleCafe = '''
+      const sampleCafeSubtotalVsTotal = '''
         KOPI KENANGAN
-        ES KOPI KENANGAN MANTAN
-        TOTAL
-        Rp 24.000
+        ES KOPI KENANGAN MANTAN    24.000
+        CROISSANT BUTTER           21.000
+        Subtotal                   45.000
+        PB1 (10%)                   4.500
+        Service (5%)                2.250
+        Rounding                      250
+        Total                      52.000
+        QRIS                       52.000
       ''';
-      final parsedCafe = ReceiptOcrService.parseReceiptText(sampleCafe);
+      final parsedCafe = ReceiptOcrService.parseReceiptText(
+        sampleCafeSubtotalVsTotal,
+      );
       expect(parsedCafe.merchantName, 'Kopi Kenangan');
-      expect(parsedCafe.totalAmount, 24000);
+      expect(parsedCafe.totalAmount, 52000);
       expect(parsedCafe.suggestedCategory, 'Ngopi');
+
+      const sampleSmudgedCashMath = '''
+        PT SUMBER ALFARIA TRIJAYA TBK
+        TELP 021-1500959
+        TOTAL ITEM 3
+        TUNAI 50. 000
+        KEMBALI 12. 5OO
+      ''';
+      final parsedAlfa = ReceiptOcrService.parseReceiptText(
+        sampleSmudgedCashMath,
+      );
+      expect(parsedAlfa.merchantName, 'Alfamart');
+      expect(parsedAlfa.totalAmount, 37500);
+    });
+
+    test('reconstructs two-column MLKit bounding boxes into accurate visual rows', () {
+      TextLine makeLine(String text, double left, double top, double right) {
+        final rect = Rect.fromLTRB(left, top, right, top + 24);
+        return TextLine(
+          text: text,
+          elements: const <TextElement>[],
+          boundingBox: rect,
+          recognizedLanguages: const <String>['id'],
+          cornerPoints: <Point<int>>[
+            Point<int>(left.toInt(), top.toInt()),
+            Point<int>(right.toInt(), top.toInt()),
+            Point<int>(right.toInt(), (top + 24).toInt()),
+            Point<int>(left.toInt(), (top + 24).toInt()),
+          ],
+          confidence: 0.99,
+          angle: 0,
+        );
+      }
+
+      // Simulates MLKit returning all left-column labels in block 1 and all
+      // right-column prices in block 2 (the classic thermal receipt failure).
+      final leftBlock = TextBlock(
+        text: 'PT INDOMARCO PRISMATAMA\nHARGA JUAL\nDISKON\nTOTAL\nTUNAI\nKEMBALI',
+        lines: <TextLine>[
+          makeLine('PT INDOMARCO PRISMATAMA', 40, 20, 420),
+          makeLine('HARGA JUAL', 40, 200, 220),
+          makeLine('DISKON', 40, 235, 180),
+          makeLine('TOTAL', 40, 270, 160),
+          makeLine('TUNAI', 40, 305, 160),
+          makeLine('KEMBALI', 40, 340, 180),
+        ],
+        boundingBox: const Rect.fromLTRB(40, 20, 420, 364),
+        recognizedLanguages: const <String>['id'],
+        cornerPoints: const <Point<int>>[],
+      );
+
+      final rightBlock = TextBlock(
+        text: '45.500\n-3.000\n42.500\n50.000\n7.500',
+        lines: <TextLine>[
+          makeLine('45.500', 500, 202, 620),
+          makeLine('-3.000', 500, 236, 620),
+          makeLine('42.500', 500, 272, 620),
+          makeLine('50.000', 500, 306, 620),
+          makeLine('7.500', 500, 341, 620),
+        ],
+        boundingBox: const Rect.fromLTRB(500, 202, 620, 365),
+        recognizedLanguages: const <String>['id'],
+        cornerPoints: const <Point<int>>[],
+      );
+
+      final recognized = RecognizedText(
+        text: '${leftBlock.text}\n${rightBlock.text}',
+        blocks: <TextBlock>[leftBlock, rightBlock],
+      );
+
+      final result = ReceiptOcrService.parseRecognizedText(recognized);
+      expect(result.merchantName, 'Indomaret');
+      expect(result.totalAmount, 42500);
+      expect(result.reconstructedLines, contains('TOTAL  42.500'));
     });
   });
 
@@ -203,7 +290,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Catat Transaksi Cepat'));
     await tester.pumpAndSettle();
-    expect(find.text('Scan Struk'), findsOneWidget);
+    expect(find.text('Scan Struk'), findsAtLeastNWidgets(1));
 
     await tester.enterText(find.byType(TextField).first, 'kopi 22rb gopay');
     await tester.pumpAndSettle();

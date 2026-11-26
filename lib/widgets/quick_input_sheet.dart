@@ -24,6 +24,8 @@ class QuickInputSheet extends StatefulWidget {
     this.initialKind = TransactionKind.expense,
     this.initialSmartText,
     this.initialSourceWalletId,
+    this.autoScanSource,
+    this.initialReceiptImagePath,
   });
 
   final FinanceController controller;
@@ -32,6 +34,8 @@ class QuickInputSheet extends StatefulWidget {
   final TransactionKind initialKind;
   final String? initialSmartText;
   final int? initialSourceWalletId;
+  final ImageSource? autoScanSource;
+  final String? initialReceiptImagePath;
 
   static Future<bool?> show(
     BuildContext context, {
@@ -41,6 +45,8 @@ class QuickInputSheet extends StatefulWidget {
     TransactionKind initialKind = TransactionKind.expense,
     String? initialSmartText,
     int? initialSourceWalletId,
+    ImageSource? autoScanSource,
+    String? initialReceiptImagePath,
   }) {
     return showModalBottomSheet<bool>(
       context: context,
@@ -55,6 +61,8 @@ class QuickInputSheet extends StatefulWidget {
         initialKind: existingTransaction?.kind ?? initialKind,
         initialSmartText: initialSmartText,
         initialSourceWalletId: initialSourceWalletId,
+        autoScanSource: autoScanSource,
+        initialReceiptImagePath: initialReceiptImagePath,
       ),
     );
   }
@@ -92,6 +100,7 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
   late DateTime _selectedDate;
   bool _isSaving = false;
   bool _isScanningOcr = false;
+  ScannedReceiptData? _lastScannedReceipt;
   String? _ocrInfoBanner;
   String? _formError;
 
@@ -129,6 +138,20 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
       _amountController = TextEditingController();
       _noteController = TextEditingController();
     }
+
+    if (widget.initialReceiptImagePath != null && !_isEditing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _handleScanSharedFile(widget.initialReceiptImagePath!);
+        }
+      });
+    } else if (widget.autoScanSource != null && !_isEditing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _handleScanReceipt(widget.autoScanSource!);
+        }
+      });
+    }
   }
 
   int? _pickDefaultTargetWallet(int? sourceId) {
@@ -149,10 +172,29 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
   }
 
   ParsedQuickInput _currentParsed() {
-    final parsed = QuickInputParser.parse(
+    var parsed = QuickInputParser.parse(
       _smartController.text,
       widget.controller.wallets,
     );
+    if (!parsed.hasExplicitCategory &&
+        parsed.kind != TransactionKind.transfer &&
+        parsed.note.isNotEmpty) {
+      final learned = widget.controller.lookupLearnedCategory(parsed.note);
+      if (learned != null) {
+        parsed = ParsedQuickInput(
+          rawText: parsed.rawText,
+          kind: parsed.kind,
+          amount: parsed.amount,
+          category: learned,
+          note: parsed.note,
+          wallet: parsed.wallet,
+          toWallet: parsed.toWallet,
+          hasExplicitAmount: parsed.hasExplicitAmount,
+          hasExplicitWallet: parsed.hasExplicitWallet,
+          hasExplicitCategory: true,
+        );
+      }
+    }
     if (_overrideSmartWalletId != null && !parsed.hasExplicitWallet) {
       final chosen = widget.controller.walletById(_overrideSmartWalletId);
       if (chosen != null) {
@@ -365,6 +407,7 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
       _isScanningOcr = true;
       _formError = null;
       _ocrInfoBanner = null;
+      _lastScannedReceipt = null;
     });
 
     // Allow popup menu route and soft keyboard to settle before launching camera activity.
@@ -383,26 +426,7 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
         return;
       }
 
-      final validCategories = CategoryCatalog.forKind(TransactionKind.expense);
-      final hasCat = validCategories.any(
-        (c) => c.name == result.suggestedCategory,
-      );
-
-      setState(() {
-        _isScanningOcr = false;
-        _mode = InputEntryMode.manualForm;
-        _selectedKind = TransactionKind.expense;
-        _selectedCategory = hasCat
-            ? result.suggestedCategory
-            : validCategories.first.name;
-        _noteController.text = result.merchantName;
-        if (result.totalAmount != null && result.totalAmount! > 0) {
-          _amountController.text = result.totalAmount.toString();
-        }
-        _ocrInfoBanner = result.totalAmount != null
-            ? 'Struk "${result.merchantName}" terbaca (${IdrFormat.currency(result.totalAmount!)}). Periksa lalu simpan.'
-            : 'Nama toko "${result.merchantName}" terbaca, silakan lengkapi nominal total.';
-      });
+      _applyScannedResult(result);
     } on ReceiptOcrException catch (e) {
       if (mounted) {
         setState(() {
@@ -418,6 +442,112 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
         });
       }
     }
+  }
+
+  Future<void> _handleScanSharedFile(String filePath) async {
+    if (_isScanningOcr) {
+      return;
+    }
+    setState(() {
+      _isScanningOcr = true;
+      _mode = InputEntryMode.manualForm;
+      _formError = null;
+      _ocrInfoBanner = null;
+      _lastScannedReceipt = null;
+    });
+
+    try {
+      final result = await ReceiptOcrService.scanReceiptFile(filePath);
+      if (!mounted) {
+        return;
+      }
+      _applyScannedResult(result);
+    } on ReceiptOcrException catch (e) {
+      if (mounted) {
+        setState(() {
+          _isScanningOcr = false;
+          _formError = e.message;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isScanningOcr = false;
+          _formError = 'Gagal membaca gambar yang dibagikan: $e';
+        });
+      }
+    }
+  }
+
+  void _applyScannedResult(ScannedReceiptData result) {
+    final validCategories = CategoryCatalog.forKind(TransactionKind.expense);
+    final learned = widget.controller.lookupLearnedCategory(result.merchantName);
+    final preferredCat = learned ?? result.suggestedCategory;
+    final hasCat = validCategories.any((c) => c.name == preferredCat);
+
+    setState(() {
+      _isScanningOcr = false;
+      _lastScannedReceipt = result;
+      _mode = InputEntryMode.manualForm;
+      _selectedKind = TransactionKind.expense;
+      _selectedCategory = hasCat ? preferredCat : validCategories.first.name;
+      _noteController.text = result.merchantName;
+      if (result.totalAmount != null && result.totalAmount! > 0) {
+        _amountController.text = result.totalAmount.toString();
+      }
+      _ocrInfoBanner = result.totalAmount != null
+          ? 'Struk "${result.merchantName}" terbaca (${IdrFormat.currency(result.totalAmount!)}).'
+          : 'Toko "${result.merchantName}" terbaca, silakan cek atau isi nominal total.';
+    });
+  }
+
+  void _showScannedTextDialog(ScannedReceiptData data) {
+    final previewText = data.reconstructedLines.isNotEmpty
+        ? data.reconstructedLines.join('\n')
+        : data.rawText;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Teks Hasil Scan Struk'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: SelectableText(
+              previewText,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.45,
+                fontFeatures: AppTheme.tabularNums,
+              ),
+            ),
+          ),
+        ),
+        actions: <Widget>[
+          TextButton.icon(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: previewText));
+              if (ctx.mounted) {
+                Navigator.of(ctx).pop();
+              }
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Teks hasil scan disalin ke clipboard.'),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.copy_rounded, size: 16),
+            label: const Text('Salin Teks'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -531,32 +661,107 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
             if (_ocrInfoBanner != null) ...<Widget>[
               const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 9,
-                ),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: saku.incomeSoft,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: saku.income.withValues(alpha: 0.25),
+                  ),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Icon(
-                      Icons.check_circle_outline_rounded,
-                      size: 17,
-                      color: saku.income,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: Icon(
+                            Icons.check_circle_outline_rounded,
+                            size: 17,
+                            color: saku.income,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _ocrInfoBanner!,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: saku.income,
+                            ),
+                          ),
+                        ),
+                        if (_lastScannedReceipt != null)
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(48, 32),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            onPressed: () =>
+                                _showScannedTextDialog(_lastScannedReceipt!),
+                            child: Text(
+                              'Lihat Teks',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: saku.income,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _ocrInfoBanner!,
+                    if (_lastScannedReceipt != null &&
+                        _lastScannedReceipt!.amountCandidates.length >
+                            1) ...<Widget>[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Kandidat nominal lain pada struk (ketuk untuk ganti):',
                         style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: saku.income,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: saku.textSecondary,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: _lastScannedReceipt!.amountCandidates.map((
+                          cand,
+                        ) {
+                          final isCurrent =
+                              _parseManualAmount() == cand.amount;
+                          return ChoiceChip(
+                            label: Text(
+                              '${cand.label} · ${IdrFormat.currency(cand.amount)}',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontFeatures: AppTheme.tabularNums,
+                              ),
+                            ),
+                            selected: isCurrent,
+                            visualDensity: VisualDensity.compact,
+                            onSelected: (_) {
+                              setState(() {
+                                _amountController.text = cand.amount.toString();
+                                _amountController.selection =
+                                    TextSelection.collapsed(
+                                      offset: _amountController.text.length,
+                                    );
+                                _formError = null;
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ],
                   ],
                 ),
               ),

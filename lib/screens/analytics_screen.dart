@@ -7,6 +7,7 @@ import '../services/finance_controller.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
+import '../widgets/luxury_widgets.dart';
 import '../widgets/settings_sheet.dart';
 
 class AnalyticsScreen extends StatefulWidget {
@@ -80,11 +81,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
     setState(() => _isExportingExcel = true);
     try {
+      final ctrl = widget.controller;
       await ExportBackupService.shareMonthlyExcel(
         month: report.month,
         monthTransactions: report.transactions,
-        wallets: widget.controller.wallets,
-        netWorth: widget.controller.netWorth,
+        wallets: ctrl.wallets,
+        netWorth: ctrl.netWorth,
+        monthlyBudget: ctrl.monthlyBudget,
+        categoryBudgets: ctrl.categoryBudgets,
+        goals: ctrl.goals,
+        bills: ctrl.bills,
+        debts: ctrl.debts,
+        previousMonthExpense: report.previousMonthExpense,
+        insights: report.insights,
       );
     } catch (e) {
       if (mounted) {
@@ -350,15 +359,7 @@ class _ComparisonBarRow extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(5),
-          child: LinearProgressIndicator(
-            value: ratio.clamp(0.0, 1.0),
-            minHeight: 9,
-            backgroundColor: saku.surfaceMuted,
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-          ),
-        ),
+        SmoothProgressBar(value: ratio, color: color, height: 9),
       ],
     );
   }

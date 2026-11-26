@@ -19,3 +19,7 @@
 -keep class com.google.android.gms.internal.mlkit_vision_text_bundled_common.** { *; }
 -keep class com.google.android.libraries.vision.visionkit.** { *; }
 -keep class com.google.android.odml.image.** { *; }
+-keep class id.sakupro.saku_pro.SakuNotificationListenerService { *; }
+-keep class id.sakupro.saku_pro.SakuQuickAddTileService { *; }
+-keep class id.sakupro.saku_pro.SakuHomeWidgetProvider { *; }
+-keep class id.sakupro.saku_pro.SakuReminderReceiver { *; }

@@ -1,3 +1,4 @@
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -6,10 +7,13 @@ import '../services/finance_controller.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
+import '../widgets/auto_capture_sheet.dart';
 import '../widgets/budget_dialog.dart';
+import '../widgets/luxury_widgets.dart';
 import '../widgets/quick_input_sheet.dart';
 import '../widgets/settings_sheet.dart';
 import '../widgets/transaction_tile.dart';
+import '../widgets/transactions_history_sheet.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -72,7 +76,74 @@ class HomeScreen extends StatelessWidget {
       await controller.deleteTransaction(tx.id!);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Transaksi dihapus dan saldo diperbarui.')),
+          const SnackBar(
+            content: Text('Transaksi dihapus dan saldo diperbarui.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openScanShortcut(BuildContext context) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) {
+        final saku = ctx.saku;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: saku.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Scan Struk Belanja',
+                style: Theme.of(ctx).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Ambil foto struk dengan jelas dan pencahayaan terang agar total harga terbaca akurat.',
+                style: Theme.of(ctx).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(ctx).pop(ImageSource.camera),
+                icon: const Icon(Icons.photo_camera_outlined, size: 20),
+                label: const Text('Buka Kamera'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(ctx).pop(ImageSource.gallery),
+                icon: const Icon(Icons.photo_library_outlined, size: 20),
+                label: const Text('Pilih Foto dari Galeri'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (source != null && context.mounted) {
+      final saved = await QuickInputSheet.show(
+        context,
+        controller: controller,
+        initialMode: InputEntryMode.manualForm,
+        autoScanSource: source,
+      );
+      if (saved == true && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Transaksi dari struk tersimpan.')),
         );
       }
     }
@@ -82,8 +153,11 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final saku = context.saku;
     final safe = controller.safeToSpend;
-    final recentTx = controller.transactions.take(15).toList();
+    final recentTx = controller.transactions.take(8).toList();
     final periodLabel = _monthYearLabel(controller.now);
+    final activeWalletCount = controller.wallets
+        .where((w) => !w.excludeFromTotal)
+        .length;
 
     return Scaffold(
       appBar: AppBar(
@@ -91,43 +165,90 @@ class HomeScreen extends StatelessWidget {
         title: Row(
           children: <Widget>[
             Container(
-              width: 34,
-              height: 34,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
-                color: const Color(0xFF0F766E),
-                borderRadius: BorderRadius.circular(9),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[saku.heroStart, saku.heroMid],
+                ),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(
+                  color: saku.goldAccent.withValues(alpha: 0.55),
+                ),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.account_balance_wallet_rounded,
                 size: 18,
-                color: Colors.white,
+                color: saku.goldAccent,
               ),
             ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Text(
-                  'SakuProWann',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.4,
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Text(
+                    'SakuProWann',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 17.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                    ),
                   ),
-                ),
-                Text(
-                  periodLabel,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: saku.textMuted,
+                  Text(
+                    periodLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: saku.textMuted,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
         actions: <Widget>[
+          IconButton(
+            tooltip: 'Auto-Catat QRIS & Bank',
+            onPressed: () =>
+                AutoCaptureSheet.show(context, controller: controller),
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                Icon(
+                  controller.autoCaptureEnabled
+                      ? Icons.notifications_active_outlined
+                      : Icons.notifications_none_rounded,
+                  color: controller.autoCaptureEnabled
+                      ? saku.brandInteractive
+                      : saku.textPrimary,
+                ),
+                if (controller.pendingAutoTransactions.isNotEmpty ||
+                    controller.autoCaptureEnabled)
+                  Positioned(
+                    right: -1,
+                    top: -1,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: controller.pendingAutoTransactions.isNotEmpty
+                            ? saku.goldAccent
+                            : saku.income,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           IconButton(
             tooltip: context.isDarkMode
                 ? 'Beralih ke Mode Terang'
@@ -146,21 +267,94 @@ class HomeScreen extends StatelessWidget {
                 SettingsSheet.show(context, controller: controller),
             icon: Icon(Icons.settings_outlined, color: saku.textPrimary),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 108),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 112),
         children: <Widget>[
-          _NetWorthCard(
-            controller: controller,
+          WealthMetalCard(
+            netWorth: controller.netWorth,
+            hidden: controller.hideBalance,
+            activeWalletCount: activeWalletCount,
+            onToggleHidden: controller.toggleHideBalance,
             onManageWallets: onNavigateToWallets,
           ),
           const SizedBox(height: 16),
-          _SafeToSpendCard(
-            controller: controller,
-            snapshot: safe,
+          LuxuryQuickActionBar(
+            actions: <QuickActionSpec>[
+              QuickActionSpec(
+                label: 'Catat',
+                icon: Icons.bolt_rounded,
+                color: saku.brandInteractive,
+                softBg: saku.brandSoft,
+                onTap: () async {
+                  final saved = await QuickInputSheet.show(
+                    context,
+                    controller: controller,
+                  );
+                  if (saved == true && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Transaksi tersimpan.')),
+                    );
+                  }
+                },
+              ),
+              QuickActionSpec(
+                label: 'Scan',
+                icon: Icons.document_scanner_outlined,
+                color: saku.goldAccent,
+                softBg: saku.goldSoft,
+                onTap: () => _openScanShortcut(context),
+              ),
+              QuickActionSpec(
+                label: 'Transfer',
+                icon: Icons.swap_horiz_rounded,
+                color: saku.transfer,
+                softBg: saku.transferSoft,
+                onTap: () async {
+                  final saved = await QuickInputSheet.show(
+                    context,
+                    controller: controller,
+                    initialMode: InputEntryMode.manualForm,
+                    initialKind: TransactionKind.transfer,
+                  );
+                  if (saved == true && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Transfer antar dompet dicatat.'),
+                      ),
+                    );
+                  }
+                },
+              ),
+              QuickActionSpec(
+                label: 'Budget',
+                icon: Icons.tune_rounded,
+                color: saku.income,
+                softBg: saku.incomeSoft,
+                onTap: () =>
+                    BudgetDialog.show(context, controller: controller),
+              ),
+            ],
           ),
+          if (controller.pendingAutoTransactions.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 16),
+            PendingAutoCaptureCard(
+              controller: controller,
+              hideBalance: controller.hideBalance,
+            ),
+          ],
+          if (controller.activeMonthlyRecap != null) ...<Widget>[
+            const SizedBox(height: 16),
+            MonthlyClosingRecapCard(
+              controller: controller,
+              recap: controller.activeMonthlyRecap!,
+              hideBalance: controller.hideBalance,
+            ),
+          ],
+          const SizedBox(height: 18),
+          _SafeToSpendCard(controller: controller, snapshot: safe),
           const SizedBox(height: 16),
           _MonthlyFlowRow(controller: controller),
           const SizedBox(height: 24),
@@ -172,21 +366,22 @@ class HomeScreen extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
-              TextButton.icon(
-                onPressed: () async {
-                  final saved = await QuickInputSheet.show(
+              if (controller.transactions.isNotEmpty)
+                TextButton(
+                  onPressed: () => TransactionsHistorySheet.show(
                     context,
                     controller: controller,
-                  );
-                  if (saved == true && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Transaksi tersimpan.')),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.bolt_rounded, size: 17),
-                label: const Text('Catat Cepat'),
-              ),
+                    onDeleteRequest: _confirmDelete,
+                  ),
+                  child: Text(
+                    'Lihat Semua (${controller.transactions.length})',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: AppTheme.tabularNums,
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 8),
@@ -197,7 +392,7 @@ class HomeScreen extends StatelessWidget {
               color: saku.surface,
               clipBehavior: Clip.antiAlias,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 side: BorderSide(color: saku.border),
               ),
               child: Column(
@@ -239,165 +434,6 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _NetWorthCard extends StatelessWidget {
-  const _NetWorthCard({
-    required this.controller,
-    required this.onManageWallets,
-  });
-
-  final FinanceController controller;
-  final VoidCallback onManageWallets;
-
-  @override
-  Widget build(BuildContext context) {
-    final saku = context.saku;
-    final hidden = controller.hideBalance;
-    final activeWalletCount = controller.wallets
-        .where((w) => !w.excludeFromTotal)
-        .length;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        // Tonal gradient elevates primary net worth card as the sole screen focal point.
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[saku.heroStart, saku.heroEnd],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: const Color(0xFF0F766E).withValues(alpha: 0.22),
-            offset: const Offset(0, 8),
-            blurRadius: 20,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  'Total Saldo Bersih',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                    color: saku.heroMutedText,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Material(
-                color: Colors.white.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(10),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: controller.toggleHideBalance,
-                  child: Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 48,
-                      minHeight: 40,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Icon(
-                          hidden
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          size: 16,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          hidden ? 'Tampilkan' : 'Sembunyikan',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              IdrFormat.currency(controller.netWorth, hidden: hidden),
-              style: const TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.6,
-                color: Colors.white,
-                fontFeatures: AppTheme.tabularNums,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: <Widget>[
-                Icon(
-                  Icons.layers_outlined,
-                  size: 16,
-                  color: saku.heroMutedText,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '$activeWalletCount dompet terhubung',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
-                      color: saku.heroMutedText,
-                      fontFeatures: AppTheme.tabularNums,
-                    ),
-                  ),
-                ),
-                InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: onManageWallets,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                    child: Text(
-                      'Kelola Dompet',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SafeToSpendCard extends StatelessWidget {
   const _SafeToSpendCard({
     required this.controller,
@@ -431,18 +467,11 @@ class _SafeToSpendCard extends StatelessWidget {
         statusIcon = Icons.error_outline_rounded;
     }
 
-    final clampedProgress = snapshot.usageRatio.clamp(0.0, 1.0);
     final pctUsed = NumberFormat.decimalPattern(
       'id_ID',
     ).format((snapshot.usageRatio * 100).round());
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: saku.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: saku.border),
-      ),
+    return LuxurySurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -458,7 +487,7 @@ class _SafeToSpendCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
                   color: statusSoft,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -487,9 +516,9 @@ class _SafeToSpendCard extends StatelessWidget {
               Text(
                 IdrFormat.currency(snapshot.dailySafeAmount, hidden: hidden),
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: 25,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: -0.4,
+                  letterSpacing: -0.6,
                   color: snapshot.level == SafeSpendLevel.overbudget
                       ? saku.expense
                       : saku.textPrimary,
@@ -502,6 +531,7 @@ class _SafeToSpendCard extends StatelessWidget {
                   '/ hari (${snapshot.remainingDays} hari tersisa)',
                   style: TextStyle(
                     fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
                     color: saku.textMuted,
                     fontFeatures: AppTheme.tabularNums,
                   ),
@@ -510,22 +540,14 @@ class _SafeToSpendCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: clampedProgress,
-              minHeight: 8,
-              backgroundColor: saku.surfaceMuted,
-              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-            ),
-          ),
+          SmoothProgressBar(value: snapshot.usageRatio, color: statusColor),
           const SizedBox(height: 10),
           Row(
             children: <Widget>[
               Expanded(
                 child: Text(
                   snapshot.remainingBudget >= 0
-                      ? 'Sisa budget ${IdrFormat.compact(snapshot.remainingBudget, hidden: hidden)} dari ${IdrFormat.compact(snapshot.monthlyBudget, hidden: hidden)} ($pctUsed%)'
+                      ? 'Sisa ${IdrFormat.compact(snapshot.remainingBudget, hidden: hidden)} dari ${IdrFormat.compact(snapshot.monthlyBudget, hidden: hidden)} ($pctUsed%)'
                       : 'Lewat budget ${IdrFormat.compact(snapshot.remainingBudget.abs(), hidden: hidden)} ($pctUsed%)',
                   style: TextStyle(
                     fontSize: 12.5,
@@ -568,7 +590,7 @@ class _MonthlyFlowRow extends StatelessWidget {
       children: <Widget>[
         Expanded(
           child: _FlowMetricTile(
-            label: 'Pemasukan Bulan Ini',
+            label: 'Pemasukan',
             amount: IdrFormat.currency(
               controller.monthlyIncome,
               hidden: hidden,
@@ -581,7 +603,7 @@ class _MonthlyFlowRow extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: _FlowMetricTile(
-            label: 'Pengeluaran Bulan Ini',
+            label: 'Pengeluaran',
             amount: IdrFormat.currency(
               controller.monthlyExpense,
               hidden: hidden,
@@ -614,24 +636,20 @@ class _FlowMetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final saku = context.saku;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: saku.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: saku.border),
-      ),
+    return LuxurySurfaceCard(
+      padding: const EdgeInsets.all(15),
+      radius: 16,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
             children: <Widget>[
               Container(
-                width: 28,
-                height: 28,
+                width: 30,
+                height: 30,
                 decoration: BoxDecoration(
                   color: softBg,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(9),
                 ),
                 child: Icon(icon, size: 16, color: accent),
               ),
@@ -642,7 +660,7 @@ class _FlowMetricTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w600,
                     color: saku.textMuted,
                   ),
@@ -650,16 +668,20 @@ class _FlowMetricTile extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            amount,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: saku.textPrimary,
-              fontFeatures: AppTheme.tabularNums,
+          const SizedBox(height: 11),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              amount,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 16.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+                color: saku.textPrimary,
+                fontFeatures: AppTheme.tabularNums,
+              ),
             ),
           ),
         ],
@@ -676,24 +698,19 @@ class _EmptyTransactionsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final saku = context.saku;
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: saku.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: saku.border),
-      ),
+    return LuxurySurfaceCard(
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
             children: <Widget>[
               Container(
-                width: 40,
-                height: 40,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: saku.brandSoft,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   Icons.bolt_rounded,
@@ -712,7 +729,7 @@ class _EmptyTransactionsCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Gunakan tombol (+) untuk mengetik kalimat singkat seperti "kopi 22rb gopay" atau "gaji 5jt bca". Kategori, tipe, nominal, dan dompet terdeteksi otomatis secara offline.',
+            'Ketik kalimat singkat seperti "kopi 22rb gopay" atau pindai struk belanja langsung dari kamera. Semua diproses 100% offline di perangkatmu.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),

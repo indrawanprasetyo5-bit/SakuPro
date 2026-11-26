@@ -8,6 +8,7 @@ import '../services/security_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
+import 'auto_capture_sheet.dart';
 import 'budget_dialog.dart';
 
 class SettingsSheet extends StatelessWidget {
@@ -257,6 +258,32 @@ class _SettingsSectionPanelState extends State<SettingsSectionPanel> {
                     ),
                   ],
                 ),
+              ),
+              Divider(height: 1, color: saku.border),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                leading: Icon(
+                  Icons.qr_code_scanner_rounded,
+                  color: saku.brandInteractive,
+                ),
+                title: Text(
+                  'Auto-Catat QRIS & Bank',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                subtitle: Text(
+                  ctrl.autoCaptureEnabled
+                      ? 'Aktif (${ctrl.enabledNotificationSourceIds.length} aplikasi · ${ctrl.autoCaptureMode.label})'
+                      : 'Catat otomatis QRIS SeaBank, DANA, GoPay, Bank Jago',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                trailing: Icon(
+                  Icons.chevron_right_rounded,
+                  color: saku.textMuted,
+                ),
+                onTap: () => AutoCaptureSheet.show(context, controller: ctrl),
               ),
               Divider(height: 1, color: saku.border),
               SwitchListTile.adaptive(

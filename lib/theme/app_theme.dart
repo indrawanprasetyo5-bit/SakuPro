@@ -5,6 +5,8 @@ import 'app_colors.dart';
 class AppTheme {
   AppTheme._();
 
+  static const String fontFamily = 'Manrope';
+
   static const List<FontFeature> tabularNums = <FontFeature>[
     FontFeature.tabularFigures(),
   ];
@@ -38,65 +40,77 @@ class AppTheme {
     );
 
     final baseText = Typography.material2021().black.apply(
+      fontFamily: fontFamily,
       bodyColor: palette.textPrimary,
       displayColor: palette.textPrimary,
     );
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: fontFamily,
       brightness: brightness,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: palette.background,
       extensions: <ThemeExtension<dynamic>>[palette],
       textTheme: baseText.copyWith(
         displaySmall: TextStyle(
-          fontSize: 30,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.6,
-          height: 1.2,
+          fontFamily: fontFamily,
+          fontSize: 32,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.8,
+          height: 1.15,
           color: palette.textPrimary,
           fontFeatures: tabularNums,
         ),
         headlineMedium: TextStyle(
+          fontFamily: fontFamily,
           fontSize: 24,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.4,
-          height: 1.25,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.5,
+          height: 1.2,
           color: palette.textPrimary,
           fontFeatures: tabularNums,
         ),
         titleLarge: TextStyle(
-          fontSize: 18,
+          fontFamily: fontFamily,
+          fontSize: 17.5,
           fontWeight: FontWeight.w700,
-          letterSpacing: -0.2,
+          letterSpacing: -0.3,
           height: 1.3,
           color: palette.textPrimary,
         ),
         titleMedium: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
+          fontFamily: fontFamily,
+          fontSize: 14.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.15,
           height: 1.35,
           color: palette.textPrimary,
         ),
         bodyLarge: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w400,
-          height: 1.45,
+          fontFamily: fontFamily,
+          fontSize: 14.5,
+          fontWeight: FontWeight.w500,
+          height: 1.48,
           color: palette.textPrimary,
         ),
         bodyMedium: TextStyle(
-          fontSize: 13.5,
-          fontWeight: FontWeight.w400,
-          height: 1.45,
+          fontFamily: fontFamily,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          height: 1.48,
           color: palette.textSecondary,
         ),
         labelLarge: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
+          fontFamily: fontFamily,
+          fontSize: 13.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.1,
           height: 1.2,
           color: palette.textPrimary,
         ),
         labelSmall: TextStyle(
+          fontFamily: fontFamily,
           fontSize: 11.5,
           fontWeight: FontWeight.w600,
           height: 1.2,
@@ -110,9 +124,10 @@ class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
+          fontFamily: fontFamily,
           fontSize: 19,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.3,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.4,
           color: palette.textPrimary,
         ),
       ),
@@ -121,26 +136,40 @@ class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           side: BorderSide(color: palette.border),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: palette.surfaceMuted,
+        selectedColor: palette.brandSoft,
+        side: BorderSide(color: palette.border),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        labelStyle: TextStyle(
+          fontFamily: fontFamily,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+          color: palette.textPrimary,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: palette.surfaceMuted,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
+          horizontal: 15,
           vertical: 14,
         ),
         hintStyle: TextStyle(
+          fontFamily: fontFamily,
           color: palette.textMuted,
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
+          fontSize: 13.5,
+          fontWeight: FontWeight.w500,
         ),
         labelStyle: TextStyle(
+          fontFamily: fontFamily,
           color: palette.textSecondary,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
+          fontSize: 13.5,
+          fontWeight: FontWeight.w600,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -164,13 +193,15 @@ class AppTheme {
           backgroundColor: const Color(0xFF0F766E),
           foregroundColor: Colors.white,
           minimumSize: const Size(48, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(13),
           ),
           textStyle: const TextStyle(
-            fontSize: 14.5,
-            fontWeight: FontWeight.w600,
+            fontFamily: fontFamily,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.1,
           ),
         ),
       ),
@@ -181,23 +212,25 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
           side: BorderSide(color: palette.border),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(13),
           ),
           textStyle: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+            fontFamily: fontFamily,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: isDark
-            ? const Color(0xFF1E293B)
-            : const Color(0xFF0F172A),
+            ? const Color(0xFF162235)
+            : const Color(0xFF0A1715),
         contentTextStyle: const TextStyle(
-          color: Color(0xFFF8FAFC),
-          fontSize: 13.5,
-          fontWeight: FontWeight.w500,
+          fontFamily: fontFamily,
+          color: Color(0xFFF3F7F6),
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -211,15 +244,16 @@ class AppTheme {
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: palette.surface,
         surfaceTintColor: Colors.transparent,
+        modalBarrierColor: Colors.black.withValues(alpha: 0.56),
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
         ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: palette.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           side: BorderSide(color: palette.border),
         ),
       ),

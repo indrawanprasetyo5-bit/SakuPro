@@ -249,6 +249,8 @@ class QuickInputParser {
     'rekening': 'bca',
     'celengan': 'tabungan',
     'simpanan': 'tabungan',
+    'jago': 'bank jago',
+    'sea': 'seabank',
   };
 
   static ParsedQuickInput parse(String input, List<WalletModel> wallets) {

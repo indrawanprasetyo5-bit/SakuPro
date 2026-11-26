@@ -1,7 +1,7 @@
 name: saku_pro
 description: "Aplikasi pencatatan keuangan pribadi offline-first berbasis Flutter."
 publish_to: 'none'
-version: 1.0.2+3
+version: 1.2.0+9
 
 environment:
   sdk: ^3.14.0
@@ -29,3 +29,16 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Manrope-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Manrope-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Manrope-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Manrope-ExtraBold.ttf
+          weight: 800

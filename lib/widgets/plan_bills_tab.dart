@@ -46,6 +46,10 @@ class PlanBillsTab extends StatelessWidget {
               defaultWalletName: controller
                   .walletById(bill.walletId ?? controller.wallets.firstOrNull?.id)
                   ?.name,
+              autoPayEnabled: controller.isBillAutoPayEnabled(bill.id),
+              onToggleAutoPay: bill.id != null
+                  ? (v) => controller.setBillAutoPay(bill.id!, v)
+                  : null,
               onPayNow: () => _PayBillSheet.show(
                 context,
                 controller: controller,
@@ -157,6 +161,8 @@ class _BillItemCard extends StatelessWidget {
     required this.currentDay,
     required this.hideBalance,
     required this.defaultWalletName,
+    required this.autoPayEnabled,
+    required this.onToggleAutoPay,
     required this.onPayNow,
     required this.onMarkUnpaid,
     required this.onEdit,
@@ -167,6 +173,8 @@ class _BillItemCard extends StatelessWidget {
   final int currentDay;
   final bool hideBalance;
   final String? defaultWalletName;
+  final bool autoPayEnabled;
+  final ValueChanged<bool>? onToggleAutoPay;
   final VoidCallback onPayNow;
   final VoidCallback? onMarkUnpaid;
   final VoidCallback onEdit;
@@ -312,6 +320,39 @@ class _BillItemCard extends StatelessWidget {
                     ),
                 ],
               ),
+              if (onToggleAutoPay != null) ...<Widget>[
+                const SizedBox(height: 10),
+                Divider(height: 1, color: saku.border),
+                const SizedBox(height: 6),
+                Row(
+                  children: <Widget>[
+                    Icon(
+                      Icons.autorenew_rounded,
+                      size: 16,
+                      color: autoPayEnabled
+                          ? saku.brandInteractive
+                          : saku.textMuted,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Auto-Catat saat jatuh tempo tgl ${bill.dueDay}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: autoPayEnabled
+                              ? saku.textPrimary
+                              : saku.textMuted,
+                        ),
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: autoPayEnabled,
+                      onChanged: onToggleAutoPay,
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
