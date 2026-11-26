@@ -66,11 +66,13 @@ class _ParsedPriceToken {
   const _ParsedPriceToken({
     required this.amount,
     required this.hasSeparatorOrCurrency,
+    required this.hasCurrencyPrefix,
     required this.endOffset,
   });
 
   final int amount;
   final bool hasSeparatorOrCurrency;
+  final bool hasCurrencyPrefix;
   final int endOffset;
 }
 
@@ -144,6 +146,34 @@ class ReceiptOcrService {
     'member',
     'pelanggan',
     'customer',
+    'transaksi berhasil',
+    'transfer berhasil',
+    'pembayaran berhasil',
+    'berhasil',
+    'sukses',
+    'selesai',
+    'bukti transaksi',
+    'bukti transfer',
+    'rincian transaksi',
+    'detail transaksi',
+    'e-receipt',
+    'm-transfer',
+    'bi-fast',
+    'bank jago',
+    'jago',
+    'seabank',
+    'bca mobile',
+    'mybca',
+    'livin',
+    'brimo',
+    'dari kantong',
+    'kantong utama',
+    'sumber dana',
+    'rincian',
+    'detail',
+    'penerima',
+    'pengirim',
+    'tujuan',
   ];
 
   static const List<String> _primaryTotalKeywords = <String>[
@@ -161,6 +191,17 @@ class ReceiptOcrService {
     'total harga',
     'total pembelian',
     'total transaksi',
+    'total transfer',
+    'total kirim',
+    'total debit',
+    'jumlah transfer',
+    'jumlah transaksi',
+    'jumlah kirim',
+    'nominal transfer',
+    'nominal transaksi',
+    'nominal',
+    'uang keluar',
+    'dana terkirim',
     'total (incl',
     'total incl',
   ];
@@ -252,6 +293,12 @@ class ReceiptOcrService {
     'point',
     'saldo',
     'balance',
+    'biaya admin',
+    'biaya transaksi',
+    'biaya layanan',
+    'biaya transfer',
+    'admin fee',
+    'biaya',
   ];
 
   static const List<String> _nonPriceLineKeywords = <String>[
@@ -259,10 +306,34 @@ class ReceiptOcrService {
     'telp',
     'tlp',
     'phone',
+    'telepon',
+    'handphone',
+    'ponsel',
+    'no hp',
+    'no. hp',
+    'nomor hp',
     'hp ',
     'wa ',
     'fax',
     'kode pos',
+    'rekening',
+    'no rek',
+    'no. rek',
+    'norek',
+    'kantong',
+    'virtual account',
+    'nomor va',
+    'id transaksi',
+    'no referensi',
+    'nomor referensi',
+    'referensi',
+    'bi-fast',
+    'bifast',
+    'rrn',
+    'stan',
+    'kode bayar',
+    'nomor kartu',
+    'id pelanggan',
     'no.',
     'no:',
     'inv',
@@ -486,6 +557,53 @@ class ReceiptOcrService {
   }
 
   static String _extractMerchant(List<String> lines, String rawText) {
+    // 1. Digital bank/e-wallet transfer receipts: extract Recipient / Merchant explicitly.
+    const recipientLabels = <String>[
+      'penerima',
+      'dikirim ke',
+      'kirim ke',
+      'transfer ke',
+      'bayar ke',
+      'pembayaran ke',
+      'nama merchant',
+      'merchant',
+      'tujuan',
+    ];
+    for (var i = 0; i < lines.length; i++) {
+      final lower = lines[i].toLowerCase().trim();
+      final matchedLabel = recipientLabels.any(
+        (lbl) => lower == lbl || lower.startsWith('$lbl ') || lower.startsWith('$lbl:'),
+      );
+      if (!matchedLabel) {
+        continue;
+      }
+      final afterColon = lines[i].contains(':')
+          ? lines[i].split(':').sublist(1).join(':').trim()
+          : '';
+      if (afterColon.length >= 3 &&
+          RegExp(r'[A-Za-z]{3,}').hasMatch(afterColon) &&
+          !_looksLikePhoneOrAccountLine(afterColon)) {
+        return _titleCase(afterColon);
+      }
+      for (var j = i + 1; j < math.min(lines.length, i + 4); j++) {
+        final cand = lines[j].trim();
+        final candLower = cand.toLowerCase();
+        if (cand.length < 3 || cand.length > 48) {
+          continue;
+        }
+        if (_looksLikePhoneOrAccountLine(cand) ||
+            _extractPriceTokens(cand).isNotEmpty ||
+            _ignoredMerchantTokens.any(candLower.contains)) {
+          continue;
+        }
+        final letters = RegExp(r'[A-Za-z]').allMatches(cand).length;
+        final digits = RegExp(r'\d').allMatches(cand).length;
+        if (letters >= 3 && digits <= 2) {
+          return _titleCase(cand);
+        }
+      }
+    }
+
     final headerText = lines.take(10).join(' ').toLowerCase();
     for (final entry in _knownLegalEntities.entries) {
       if (headerText.contains(entry.key)) {
@@ -527,6 +645,20 @@ class ReceiptOcrService {
       }
     }
     return 'Belanja Struk';
+  }
+
+  static bool _looksLikePhoneOrAccountLine(String line) {
+    final trimmed = line.trim();
+    if (RegExp(r'(?:\+?62|0)[\s.\-]*8\d(?:[\s.\-]*\d){6,12}').hasMatch(trimmed)) {
+      return true;
+    }
+    if (RegExp(r'[*•xX]{2,}\s*\d{2,}').hasMatch(trimmed)) {
+      return true;
+    }
+    if (RegExp(r'^\+?\d[\d\s.\-]{7,}$').hasMatch(trimmed)) {
+      return true;
+    }
+    return false;
   }
 
   static List<ReceiptAmountCandidate> _rankTotalCandidates(List<String> lines) {
@@ -606,15 +738,20 @@ class ReceiptOcrService {
         continue;
       }
 
-      if (_matchesAny(lower, _paymentMethodKeywords) &&
-          !_matchesAny(lower, _nonPriceLineKeywords)) {
+      if (_matchesAny(lower, _nonPriceLineKeywords)) {
+        continue;
+      }
+
+      if (_matchesAny(lower, _paymentMethodKeywords)) {
         final token = _rightmostPriceFromLineOrNext(lines, i);
-        if (token != null) {
+        // Require explicit currency or thousand separator so bank/e-wallet labels
+        // (e.g. "DANA 0812 3456 7890") never capture bare phone/account digits.
+        if (token != null && token.hasSeparatorOrCurrency) {
           scored.add(
             ReceiptAmountCandidate(
               label: _shortLabel(line, fallback: 'Pembayaran'),
               amount: token.amount,
-              score: 74 + (token.hasSeparatorOrCurrency ? 8 : 0),
+              score: 74 + (token.hasCurrencyPrefix ? 8 : 4),
             ),
           );
         }
@@ -634,6 +771,30 @@ class ReceiptOcrService {
             ),
           );
         }
+        continue;
+      }
+
+      // Digital transfer receipts (Bank Jago, SeaBank, DANA, GoPay) display the
+      // main amount prominently as a standalone "Rp50.000" or "-Rp50.000" line.
+      final explicitTokens = _extractPriceTokens(line)
+          .where((t) => t.hasCurrencyPrefix)
+          .toList();
+      if (explicitTokens.isNotEmpty) {
+        final nonCurrencyLetters = RegExp(r'[A-Za-z]')
+            .allMatches(
+              line.replaceAll(RegExp(r'\b(rp|idr)\b', caseSensitive: false), ''),
+            )
+            .length;
+        final heroToken = explicitTokens.last;
+        scored.add(
+          ReceiptAmountCandidate(
+            label: nonCurrencyLetters <= 2
+                ? 'Nominal Transaksi'
+                : _shortLabel(line, fallback: 'Nominal Rp'),
+            amount: heroToken.amount,
+            score: nonCurrencyLetters <= 2 ? 90 : 72,
+          ),
+        );
       }
     }
 
@@ -762,11 +923,31 @@ class ReceiptOcrService {
   }
 
   static List<_ParsedPriceToken> _extractPriceTokens(String rawLine) {
-    // Strip dates (26/11/2026, 26-11-26) and timestamps (14:35:20) first.
+    final lowerLine = rawLine.toLowerCase();
+    final isDiscountLine = _matchesAny(lowerLine, const <String>[
+      'diskon',
+      'disc',
+      'potongan',
+      'hemat',
+      'voucher',
+      'kupon',
+      'promo',
+    ]);
+
+    // Strip dates, timestamps, Indonesian phone numbers (+62/628/08 with spaces/dashes),
+    // masked account/phone numbers (****5678), spaced 4-digit account groups,
+    // alphanumeric transaction IDs, and 9+ digit bare account/VA numbers.
     var sanitized = rawLine
         .replaceAll(RegExp(r'\b\d{1,4}[/-]\d{1,2}[/-]\d{2,4}\b'), ' ')
         .replaceAll(RegExp(r'\b\d{1,2}:\d{2}(?::\d{2})?\b'), ' ')
-        .replaceAll(RegExp(r'\b0\d{7,13}\b'), ' ');
+        .replaceAll(RegExp(r'(?:\+?62|0)[\s.\-]*8\d(?:[\s.\-]*\d){6,12}'), ' ')
+        .replaceAll(RegExp(r'\b8\d{2}[\s.\-]\d{3,4}[\s.\-]\d{3,5}\b'), ' ')
+        .replaceAll(RegExp(r'(?:\+?62|0)[\s.\-]*2\d(?:[\s.\-]*\d){6,10}'), ' ')
+        .replaceAll(RegExp(r'[*•xX]{2,}[\s\-]*\d{2,8}'), ' ')
+        .replaceAll(RegExp(r'\b\d{4}[\s\-]\d{4}(?:[\s\-]\d{2,6})+\b'), ' ')
+        .replaceAll(RegExp(r'\b[A-Za-z]+\d{4,}[A-Za-z0-9]*\b'), ' ')
+        .replaceAll(RegExp(r'\b\d{4,}[A-Za-z]+[A-Za-z0-9]*\b'), ' ')
+        .replaceAll(RegExp(r'\b\d{9,}\b'), ' ');
 
     // Collapse accidental OCR spaces around thousand separators (12. 5OO -> 12.5OO).
     sanitized = sanitized.replaceAllMapped(
@@ -792,10 +973,19 @@ class ReceiptOcrService {
         continue;
       }
 
-      // Skip negative discount figures like -5.000 or (5.000).
+      final hasCurrencyPrefix = RegExp(
+        r'^(?:rp|idr)',
+        caseSensitive: false,
+      ).hasMatch(fullMatch.trimLeft());
+
+      // Skip negative discount figures like -5.000 or (5.000), while preserving
+      // digital bank outgoing transfer lines like "-Rp50.000" or "- Rp 50.000".
       if (match.start > 0) {
-        final prevChar = sanitized[match.start - 1];
-        if (prevChar == '-' || prevChar == '(') {
+        final leadingSlice = sanitized.substring(0, match.start).trimRight();
+        if (leadingSlice.endsWith('(')) {
+          continue;
+        }
+        if (leadingSlice.endsWith('-') && (!hasCurrencyPrefix || isDiscountLine)) {
           continue;
         }
       }
@@ -815,11 +1005,6 @@ class ReceiptOcrService {
         }
       }
 
-      final hasCurrencyPrefix = RegExp(
-        r'^(?:rp|idr)',
-        caseSensitive: false,
-      ).hasMatch(fullMatch.trimLeft());
-
       var hasThousandSep = RegExp(r'\d[.,]\d{3}\b').hasMatch(numberPart);
 
       // Handle explicit trailing 2-digit decimals (,00 or .00) without breaking .000.
@@ -829,7 +1014,7 @@ class ReceiptOcrService {
             hasThousandSep || RegExp(r'\d[.,]\d{3}\b').hasMatch(numberPart);
       }
 
-      // Skip bare numbers with leading zero (e.g. 001234 receipt sequence).
+      // Skip bare numbers with leading zero (e.g. 001234 receipt sequence or phone fragment).
       if (!hasThousandSep && numberPart.startsWith('0')) {
         continue;
       }
@@ -843,18 +1028,22 @@ class ReceiptOcrService {
       if (parsed < 500 || parsed > 100000000) {
         continue;
       }
-      // Reject years (2020..2035) and compact dates (20261126) unless clearly formatted.
-      if (!hasCurrencyPrefix &&
-          !hasThousandSep &&
-          ((parsed >= 2020 && parsed <= 2035) ||
-              (parsed >= 20200101 && parsed <= 20351231))) {
-        continue;
+      // Reject years (2020..2035), compact dates, and unformatted 7-8 digit phone/account fragments.
+      if (!hasCurrencyPrefix && !hasThousandSep) {
+        if ((parsed >= 2020 && parsed <= 2035) ||
+            (parsed >= 20200101 && parsed <= 20351231)) {
+          continue;
+        }
+        if (digits.length >= 7 && parsed % 100 != 0) {
+          continue;
+        }
       }
 
       tokens.add(
         _ParsedPriceToken(
           amount: parsed,
           hasSeparatorOrCurrency: hasCurrencyPrefix || hasThousandSep,
+          hasCurrencyPrefix: hasCurrencyPrefix,
           endOffset: match.end,
         ),
       );

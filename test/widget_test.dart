@@ -162,6 +162,60 @@ void main() {
       expect(result.totalAmount, 42500);
       expect(result.reconstructedLines, contains('TOTAL  42.500'));
     });
+
+    test('parses Bank Jago, SeaBank, and DANA digital transfer receipts without grabbing phone or account numbers', () {
+      const bankJagoToDana = '''
+Jago
+Transaksi Berhasil
+26 Nov 2026, 19:10 WIB
+-Rp50.000
+Penerima
+Budi Santoso
+DANA
+0812-3456-7890
+Dari Kantong
+Kantong Utama
+1029 3847 5612
+Biaya Admin Rp0
+ID Transaksi JAGO202611260001234
+''';
+      final jagoRes = ReceiptOcrService.parseReceiptText(bankJagoToDana);
+      expect(jagoRes.totalAmount, 50000);
+      expect(jagoRes.merchantName, 'Budi Santoso');
+
+      const bankJagoWithPlus62AndFee = '''
+Bank Jago
+Transfer Berhasil
+Penerima
+Kopi Kenangan
+GoPay +62 857 1234 5678
+Nominal Transfer Rp75.000
+Biaya Admin Rp2.500
+Total Transaksi Rp77.500
+No Referensi 908877665544
+''';
+      final jagoRes2 = ReceiptOcrService.parseReceiptText(
+        bankJagoWithPlus62AndFee,
+      );
+      expect(jagoRes2.totalAmount, 77500);
+      expect(jagoRes2.merchantName, 'Kopi Kenangan');
+
+      const danaReceiptWithDroppedZero = '''
+DANA
+Pembayaran Berhasil
+- Rp 125.000
+Dikirim ke
+Warung Sate Madura
+812-3456-7890
+6281234567890
+Biaya Admin Rp2.500
+''';
+      final danaRes = ReceiptOcrService.parseReceiptText(
+        danaReceiptWithDroppedZero,
+      );
+      expect(danaRes.totalAmount, 125000);
+      expect(danaRes.merchantName, 'Warung Sate Madura');
+    });
   });
 
   group('FinanceController Stage 1, 2 & 3 business logic', () {

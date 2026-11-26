@@ -655,17 +655,21 @@ class _AutoCaptureSheetState extends State<AutoCaptureSheet>
                         if (!granted) ...<Widget>[
                           const SizedBox(height: 10),
                           Container(
-                            padding: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: saku.surfaceMuted,
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
-                              'Tips Android 13+: Jika tombol SakuProWann abu-abu (Setelan terbatas), tekan "Info Aplikasi (Android 13+)" -> titik tiga kanan atas -> Izinkan setelan terbatas, lalu kembali buka Izin Notifikasi.',
+                              'Cara buka kunci Android 13-16 ("Setelan terbatas / Bahaya"):\n'
+                              '1. Tekan "Buka Izin Notifikasi" -> tap SakuProWann sekali (sampai muncul pop-up Setelan terbatas).\n'
+                              '2. Kembali ke sini -> tekan "Info Aplikasi (Android 13+)".\n'
+                              '3. Tap titik tiga (⋮) di pojok kanan atas (di Xiaomi/HyperOS scroll paling bawah) -> pilih "Izinkan setelan terbatas" -> konfirmasi PIN/sidik jari.\n'
+                              '4. Kembali ke "Buka Izin Notifikasi" -> sekarang switch SakuProWann bisa dinyalakan normal.',
                               style: TextStyle(
                                 fontSize: 11.5,
                                 color: saku.textSecondary,
-                                height: 1.4,
+                                height: 1.45,
                               ),
                             ),
                           ),
