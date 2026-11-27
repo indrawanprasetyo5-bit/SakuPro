@@ -931,9 +931,16 @@ class ReceiptOcrService {
             math.min(rowBottom, item.bottom) - math.max(rowTop, item.top);
         final minHeight = math.min(avgHeight, item.height);
         final deltaY = (item.centerY - avgCenter).abs();
-        final tolerance = math.max(avgHeight, item.height) * 0.55;
+        final rowLeft = row.map((l) => l.left).reduce(math.min);
+        final rowRight = row.map((l) => l.right).reduce(math.max);
+        final horizontalOverlap =
+            math.min(rowRight, item.right) - math.max(rowLeft, item.left);
+        // Slightly more forgiving vertical tilt tolerance for separate left/right columns on thermal paper.
+        final tolerance =
+            math.max(avgHeight, item.height) *
+            (horizontalOverlap <= 0 ? 0.68 : 0.52);
 
-        if ((overlap > 0 && overlap / minHeight >= 0.32) ||
+        if ((overlap > 0 && overlap / minHeight >= 0.30) ||
             deltaY <= tolerance) {
           if (deltaY < bestDelta) {
             bestDelta = deltaY;
@@ -979,7 +986,11 @@ class ReceiptOcrService {
     final transferNote = _extractTransferNote(lines);
     final adminFee = _extractAdminFee(lines);
     final suggestedKind = _detectTransactionKind(lines);
-    final items = _extractLineItems(lines, bestTotal);
+    final items = _extractLineItems(
+      lines,
+      bestTotal,
+      merchant: merchant,
+    );
     final receiptDate = _parseReceiptDateTime(lines);
 
     final category = _inferSmartCategory(
@@ -1229,42 +1240,77 @@ class ReceiptOcrService {
 
   static List<ReceiptLineItem> _extractLineItems(
     List<String> lines,
-    int? bestTotal,
-  ) {
-    final items = <ReceiptLineItem>[];
-    final seen = <String>{};
+    int? bestTotal, {
+    String merchant = '',
+  }) {
+    if (_isPersonTransferReceipt(lines)) {
+      return const <ReceiptLineItem>[];
+    }
 
-    // Stop scanning item lines once we hit summary/footer lines on store receipts.
-    var reachedSummarySection = false;
+    final items = <ReceiptLineItem>[];
+    final indexByName = <String, int>{};
+    final merchantLower = merchant.toLowerCase().trim();
+
+    String? pendingName;
+    int pendingQty = 1;
+    int pendingIndex = -10;
+
+    void addOrMergeItem(String rawName, int price, int qty) {
+      final cleanName = _titleCase(rawName);
+      final key = cleanName.toLowerCase();
+      final existingIdx = indexByName[key];
+      if (existingIdx != null) {
+        final prev = items[existingIdx];
+        items[existingIdx] = ReceiptLineItem(
+          name: prev.name,
+          price: prev.price + price,
+          quantity: prev.quantity + qty,
+        );
+      } else {
+        indexByName[key] = items.length;
+        items.add(
+          ReceiptLineItem(
+            name: cleanName,
+            price: price,
+            quantity: qty,
+          ),
+        );
+      }
+    }
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i].trim();
+      if (line.isEmpty) {
+        continue;
+      }
       final lower = line.toLowerCase();
 
-      if (_matchesAny(lower, _primaryTotalKeywords) ||
-          _matchesAny(lower, _cashPaidKeywords) ||
-          _matchesAny(lower, _changeKeywords) ||
-          lower.contains('subtotal') ||
-          lower.contains('sub total') ||
-          lower.contains('harga jual') ||
-          _containsWholeWord(lower, 'total')) {
-        reachedSummarySection = true;
-        continue;
-      }
-      if (reachedSummarySection) {
-        continue;
+      if (_isSummaryBoundaryLine(lower)) {
+        break;
       }
 
-      if (_matchesAny(lower, _excludedTotalLineKeywords) ||
-          _matchesAny(lower, _nonPriceLineKeywords) ||
-          _matchesAny(lower, _paymentMethodKeywords) ||
-          _matchesAny(lower, _ignoredMerchantTokens) ||
-          _looksLikePhoneOrAccountLine(line)) {
+      if (_isNonItemMetadataLine(line, lower, merchantLower: merchantLower, lineIndex: i)) {
+        pendingName = null;
         continue;
       }
 
       final tokens = _extractPriceTokens(line);
+
+      // Line without price: might be the menu name of a 2-line / 3-line item
+      // (e.g. "Ayam Geprek Sambal Matah" followed by "2 x 18.000   36.000").
       if (tokens.isEmpty) {
+        if (_looksLikeItemModifierLine(lower) &&
+            pendingName != null &&
+            i - pendingIndex <= 2) {
+          // Keep the parent menu item alive across modifier rows ("Less Ice", "Pedas").
+          continue;
+        }
+        final candidate = _extractPendingItemName(line);
+        if (candidate != null) {
+          pendingName = candidate.$1;
+          pendingQty = candidate.$2;
+          pendingIndex = i;
+        }
         continue;
       }
 
@@ -1272,65 +1318,548 @@ class ReceiptOcrService {
       if (bestTotal != null &&
           priceToken.amount > bestTotal &&
           bestTotal >= 1000) {
+        pendingName = null;
         continue;
       }
 
-      // Extract the item name sitting to the left of the price token.
-      var namePart = line.substring(0, math.min(line.length, priceToken.startOffset)).trim();
-      if (namePart.isEmpty) {
-        // Fallback: strip the formatted price from the end of the line.
-        namePart = line
-            .replaceAll(
-              RegExp(
-                r'(?:rp|idr)?\.?\s*\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?\s*$',
-                caseSensitive: false,
-              ),
-              '',
-            )
-            .trim();
-      }
+      final parsedNameAndQty = _extractInlineItemNameAndQty(line, tokens);
+      var namePart = parsedNameAndQty.$1;
+      var qty = parsedNameAndQty.$2;
 
-      var qty = 1;
-      final leadingQty = RegExp(r'^(\d{1,2})\s*[xX*]\s+').firstMatch(namePart);
-      if (leadingQty != null) {
-        qty = int.tryParse(leadingQty.group(1)!) ?? 1;
-        namePart = namePart.substring(leadingQty.end).trim();
-      } else {
-        final trailingQty = RegExp(r'\s+(\d{1,2})\s*[xX*@]\s*[\d.,]*$').firstMatch(namePart);
-        if (trailingQty != null) {
-          qty = int.tryParse(trailingQty.group(1)!) ?? 1;
-          namePart = namePart.substring(0, trailingQty.start).trim();
+      final inlineLetters = RegExp(r'[A-Za-z]').allMatches(namePart).length;
+      if (inlineLetters < 2) {
+        // Price-only or qty-x-unitPrice continuation line -> pair with buffered menu name!
+        if (pendingName != null && i - pendingIndex <= 3) {
+          final mergedQty = qty > 1 ? qty : pendingQty;
+          addOrMergeItem(pendingName, priceToken.amount, mergedQty);
+          pendingName = null;
+          pendingQty = 1;
         }
-      }
-
-      namePart = namePart
-          .replaceAll(RegExp(r'^[\-\*\•\d\.\)\s]{1,4}(?=[A-Za-z])'), '')
-          .replaceAll(RegExp(r'[\s:\-]+$'), '')
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .trim();
-
-      final letters = RegExp(r'[A-Za-z]').allMatches(namePart).length;
-      if (letters < 3 || namePart.length > 48) {
+        if (items.length >= 35) {
+          break;
+        }
         continue;
       }
 
-      final cleanName = _titleCase(namePart);
-      final dedupeKey = '${cleanName.toLowerCase()}_${priceToken.amount}';
-      if (seen.add(dedupeKey)) {
-        items.add(
-          ReceiptLineItem(
-            name: cleanName,
-            price: priceToken.amount,
-            quantity: qty,
-          ),
-        );
+      pendingName = null;
+      pendingQty = 1;
+      if (namePart.length <= 64) {
+        addOrMergeItem(namePart, priceToken.amount, qty);
       }
-      if (items.length >= 15) {
+      if (items.length >= 35) {
         break;
       }
     }
 
     return items;
+  }
+
+  static bool _isPersonTransferReceipt(List<String> lines) {
+    final full = lines.join('\n').toLowerCase();
+    final hasTransferCue = _matchesAny(full, const <String>[
+      'transfer berhasil',
+      'transaksi berhasil',
+      'transfer masuk',
+      'uang masuk',
+      'bi-fast',
+      'dari kantong',
+      'sumber dana',
+      'dikirim ke',
+      'penerima',
+      'pengirim',
+      'no referensi',
+      'id transaksi',
+    ]);
+    if (!hasTransferCue) {
+      return false;
+    }
+    // Food delivery / e-commerce receipts may say "transaksi berhasil" but include itemized subtotals.
+    if (full.contains('subtotal') || full.contains('sub total')) {
+      return false;
+    }
+    return true;
+  }
+
+  static bool _isSummaryBoundaryLine(String lower) {
+    const nonMonetaryCountPhrases = <String>[
+      'total item',
+      'total items',
+      'total qty',
+      'total pcs',
+      'total barang',
+      'total produk',
+      'total menu',
+      'total tamu',
+      'total guest',
+      'total pax',
+    ];
+    if (_matchesAny(lower, nonMonetaryCountPhrases)) {
+      return false;
+    }
+    if (lower.contains('subtotal') ||
+        lower.contains('sub total') ||
+        lower.contains('harga jual') ||
+        _matchesAny(lower, _primaryTotalKeywords) ||
+        _matchesAny(lower, _changeKeywords)) {
+      return true;
+    }
+    if (_containsWholeWord(lower, 'total') ||
+        _containsWholeWord(lower, 'tunai') ||
+        _containsWholeWord(lower, 'cash') ||
+        _containsWholeWord(lower, 'diterima') ||
+        _containsWholeWord(lower, 'tendered')) {
+      return true;
+    }
+    return false;
+  }
+
+  static bool _isNonItemMetadataLine(
+    String line,
+    String lower, {
+    required String merchantLower,
+    required int lineIndex,
+  }) {
+    if (_looksLikePhoneOrAccountLine(line)) {
+      return true;
+    }
+    // Pure divider/symbol lines (e.g. "--------", "========")
+    if (!RegExp(r'[A-Za-z0-9]').hasMatch(line)) {
+      return true;
+    }
+    // Pure date/time lines without a menu name or price token
+    final withoutDate = line
+        .replaceAll(
+          RegExp(
+            r'\b(?:\d{1,2}\s+(?:jan|feb|mar|apr|mei|may|jun|jul|agu|aug|sep|okt|oct|nov|des|dec)[a-z]*\s+\d{2,4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{1,2}:\d{2}(?::\d{2})?(?:\s*wib|wita|wit)?)\b',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(RegExp(r'[^A-Za-z]'), '');
+    if (withoutDate.isEmpty && _extractPriceTokens(line).isEmpty) {
+      return true;
+    }
+
+    // Store brand/header in top 4 lines when it has no price token.
+    if (lineIndex <= 4 &&
+        merchantLower.length >= 3 &&
+        _extractPriceTokens(line).isEmpty &&
+        (lower.contains(merchantLower) || merchantLower.contains(lower))) {
+      return true;
+    }
+
+    // Whole-word or multi-word metadata, tax, fee, discount, and receipt header filters.
+    // Avoids substring false positives on real menu items like "Nasi Goreng Jawa",
+    // "Paket Hemat", "Es Ovomaltine", or "Cinnabon".
+    const phraseRejects = <String>[
+      'selamat datang',
+      'terima kasih',
+      'thank you',
+      'layanan konsumen',
+      'call center',
+      'kode pos',
+      'no rek',
+      'no. rek',
+      'no hp',
+      'no. hp',
+      'nomor hp',
+      'order id',
+      'order no',
+      'no order',
+      'no. order',
+      'no bon',
+      'no. bon',
+      'no struk',
+      'no. struk',
+      'no nota',
+      'no transaksi',
+      'id transaksi',
+      'no referensi',
+      'nomor referensi',
+      'service charge',
+      'biaya layanan',
+      'biaya admin',
+      'biaya transaksi',
+      'biaya transfer',
+      'biaya kirim',
+      'biaya kemasan',
+      'admin fee',
+      'delivery fee',
+      'packaging fee',
+      'total hemat',
+      'anda hemat',
+      'total diskon',
+      'total disc',
+      'total potongan',
+      'total pajak',
+      'total ppn',
+      'total tax',
+      'total item',
+      'total items',
+      'total qty',
+      'total pcs',
+      'total barang',
+      'total menu',
+      'total tamu',
+      'dine in',
+      'dine-in',
+      'take away',
+      'takeaway',
+      'open bill',
+      'closed bill',
+      'non tunai',
+      'non-tunai',
+      'e-wallet',
+      'kartu debit',
+      'kartu kredit',
+      'transaksi berhasil',
+      'transfer berhasil',
+      'pembayaran berhasil',
+      'bukti transaksi',
+      'bukti transfer',
+      'rincian transaksi',
+      'detail transaksi',
+      'dari kantong',
+      'sumber dana',
+      'virtual account',
+      'bi-fast',
+    ];
+    if (_matchesAny(lower, phraseRejects)) {
+      return true;
+    }
+
+    const wholeWordRejects = <String>[
+      'npwp',
+      'pkp',
+      'jl',
+      'jalan',
+      'kec',
+      'kel',
+      'kab',
+      'kota',
+      'telp',
+      'tlp',
+      'phone',
+      'telepon',
+      'fax',
+      'whatsapp',
+      'tanggal',
+      'tgl',
+      'date',
+      'waktu',
+      'time',
+      'kasir',
+      'cashier',
+      'meja',
+      'table',
+      'waiter',
+      'server',
+      'antrian',
+      'queue',
+      'struk',
+      'receipt',
+      'invoice',
+      'nota',
+      'reprint',
+      'instagram',
+      'member',
+      'pelanggan',
+      'customer',
+      'pb1',
+      'ppn',
+      'dpp',
+      'pajak',
+      'tax',
+      'service',
+      'svc',
+      'rounding',
+      'pembulatan',
+      'diskon',
+      'disc',
+      'discount',
+      'potongan',
+      'voucher',
+      'kupon',
+      'ongkir',
+      'poin',
+      'saldo',
+      'balance',
+      'penerima',
+      'pengirim',
+    ];
+    for (final w in wholeWordRejects) {
+      if (_containsWholeWord(lower, w)) {
+        return true;
+      }
+    }
+
+    // Reject standalone payment lines (e.g. "QRIS 102.000", "OVO 50.000", "BCA 75.000")
+    // while keeping menu items containing similar letters (e.g. "Es Ovomaltine").
+    const paymentWords = <String>[
+      'qris',
+      'gopay',
+      'ovo',
+      'dana',
+      'shopeepay',
+      'linkaja',
+      'bca',
+      'mandiri',
+      'bni',
+      'bri',
+      'edc',
+      'flazz',
+      'emoney',
+      'brizzi',
+      'debit',
+      'kredit',
+      'credit',
+      'ewallet',
+    ];
+    for (final pw in paymentWords) {
+      if (_containsWholeWord(lower, pw)) {
+        final stripped = lower
+            .replaceAll(RegExp(r'\b' + RegExp.escape(pw) + r'\b'), '')
+            .replaceAll(RegExp(r'\b(rp|idr|bayar|pay|payment|bank|card|kartu)\b'), '')
+            .replaceAll(RegExp(r'[^a-z]'), '');
+        if (stripped.length < 3) {
+          return true;
+        }
+      }
+    }
+
+    // Reject lines starting with store entity prefixes ("PT ...", "CV ...", "www.", "http", "@ig").
+    if (RegExp(r'^(?:pt\.?\s|cv\.?\s|ud\.?\s|www\.|https?://|@)', caseSensitive: false)
+        .hasMatch(line)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  static bool _looksLikeItemModifierLine(String lower) {
+    if (lower.startsWith('+') ||
+        lower.startsWith('-') ||
+        lower.startsWith('*') ||
+        lower.startsWith('(') ||
+        lower.startsWith('note:') ||
+        lower.startsWith('catatan:')) {
+      return true;
+    }
+    const modifierTokens = <String>[
+      'less sugar',
+      'no sugar',
+      'normal sugar',
+      'extra sugar',
+      'less ice',
+      'no ice',
+      'normal ice',
+      'extra ice',
+      'tidak pedas',
+      'sedang',
+      'pedas',
+      'manis',
+      'regular',
+      'reguler',
+      'medium',
+      'large',
+      'upsize',
+      'dingin',
+      'panas',
+      'hangat',
+      'tanpa ',
+      'pisah ',
+    ];
+    return _matchesAny(lower, modifierTokens) && lower.length <= 36;
+  }
+
+  static (String, int)? _extractPendingItemName(String rawLine) {
+    var text = rawLine.trim();
+    if (text.length < 2 || text.length > 64) {
+      return null;
+    }
+    // Skip lines that look like store addresses or branch codes (mostly uppercase short codes / numbers).
+    if (RegExp(r'^\d[\d\s\-/.,:#]+$').hasMatch(text)) {
+      return null;
+    }
+
+    var qty = 1;
+    final leadQtyX = RegExp(r'^(\d{1,2})\s*[xX*]\s*(.+)$').firstMatch(text);
+    if (leadQtyX != null) {
+      qty = int.tryParse(leadQtyX.group(1)!) ?? 1;
+      text = leadQtyX.group(2)!.trim();
+    } else {
+      final leadQtySpace = RegExp(r'^(\d{1,2})\s+([A-Za-z].+)$').firstMatch(text);
+      if (leadQtySpace != null) {
+        final parsedQty = int.tryParse(leadQtySpace.group(1)!) ?? 1;
+        if (parsedQty >= 1 && parsedQty <= 30) {
+          qty = parsedQty;
+          text = leadQtySpace.group(2)!.trim();
+        }
+      }
+    }
+
+    text = text
+        .replaceAll(RegExp(r'^[\-\*\•\.\)\s]{1,3}(?=[A-Za-z])'), '')
+        .replaceAll(RegExp(r'[\s:\-]+$'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    final letters = RegExp(r'[A-Za-z]').allMatches(text).length;
+    if (letters < 2 || text.length > 64) {
+      return null;
+    }
+    return (text, qty);
+  }
+
+  static (String, int) _extractInlineItemNameAndQty(
+    String rawLine,
+    List<_ParsedPriceToken> tokens,
+  ) {
+    var qty = 1;
+
+    // Detect explicit qty x unitPrice pattern anywhere in line (e.g. "2 x 18.000", "2x @15.000", "3 @ 5.000").
+    final midQtyMatch = RegExp(
+      r'(?:^|\s)(\d{1,2})\s*(?:[xX*@]|pcs\s*[xX*@]?)\s*(?:rp\.?\s*)?\d[\d.,]*',
+      caseSensitive: false,
+    ).firstMatch(rawLine);
+    if (midQtyMatch != null) {
+      final parsedQty = int.tryParse(midQtyMatch.group(1)!) ?? 1;
+      if (parsedQty >= 1 && parsedQty <= 50) {
+        qty = parsedQty;
+      }
+    }
+
+    // Slice item name cleanly BEFORE the first qty-price expression or first price number.
+    var cutPos = rawLine.length;
+    if (midQtyMatch != null && midQtyMatch.start < cutPos) {
+      cutPos = midQtyMatch.start;
+    }
+
+    final firstPricePattern = RegExp(
+      r'(?:^|\s)(?:(?:rp|idr)\.?\s*\d[\d.,]*|\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d{4,7}(?:[.,]\d{2})?)(?=\s|$)',
+      caseSensitive: false,
+    ).firstMatch(rawLine);
+    if (firstPricePattern != null && firstPricePattern.start < cutPos) {
+      cutPos = firstPricePattern.start;
+    }
+
+    var namePart = rawLine.substring(0, cutPos).trim();
+
+    // Check leading quantity on the item name: "2x Nasi Goreng", "2xNasi Goreng", or "2 Nasi Goreng".
+    final leadQtyX = RegExp(r'^(\d{1,2})\s*[xX*]\s*(.*)$').firstMatch(namePart);
+    if (leadQtyX != null) {
+      final parsedQty = int.tryParse(leadQtyX.group(1)!) ?? 1;
+      if (parsedQty >= 1 && parsedQty <= 50) {
+        qty = parsedQty;
+      }
+      namePart = leadQtyX.group(2)!.trim();
+    } else {
+      final leadQtySpace = RegExp(
+        r'^(\d{1,2})\s+([A-Za-z].*)$',
+      ).firstMatch(namePart);
+      if (leadQtySpace != null) {
+        final parsedQty = int.tryParse(leadQtySpace.group(1)!) ?? 1;
+        if (parsedQty >= 1 && parsedQty <= 50) {
+          qty = parsedQty;
+          namePart = leadQtySpace.group(2)!.trim();
+        }
+      }
+    }
+
+    // Check trailing quantity attached to item name: "Caramel Macchiato 2x" or "Nasi Goreng 2".
+    final trailQtyX = RegExp(
+      r'\s+(\d{1,2})\s*[xX*]$',
+    ).firstMatch(namePart);
+    if (trailQtyX != null) {
+      final parsedQty = int.tryParse(trailQtyX.group(1)!) ?? 1;
+      if (parsedQty >= 1 && parsedQty <= 50) {
+        qty = parsedQty;
+      }
+      namePart = namePart.substring(0, trailQtyX.start).trim();
+    } else if (tokens.length >= 2) {
+      final trailBareQty = RegExp(r'\s+(\d{1,2})$').firstMatch(namePart);
+      if (trailBareQty != null) {
+        final parsedQty = int.tryParse(trailBareQty.group(1)!) ?? 1;
+        if (parsedQty >= 1 && parsedQty <= 50) {
+          qty = parsedQty;
+          namePart = namePart.substring(0, trailBareQty.start).trim();
+        }
+      } else if (qty == 1) {
+        // Infer quantity when both unit price and line total appear (e.g. "15.000  30.000").
+        final unit = tokens.first.amount;
+        final total = tokens.last.amount;
+        if (unit >= 500 && total > unit && total % unit == 0) {
+          final inferred = total ~/ unit;
+          if (inferred >= 2 && inferred <= 30) {
+            qty = inferred;
+          }
+        }
+      }
+    }
+
+    namePart = namePart
+        .replaceAll(RegExp(r'^[\-\*\•\.\)\s]{1,4}(?=[A-Za-z])'), '')
+        .replaceAll(RegExp(r'[\s:@\-]+$'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    return (namePart, qty);
+  }
+
+  static int? _extractTaxAndServiceTotal(List<String> lines) {
+    var total = 0;
+    const taxWords = <String>['pb1', 'ppn', 'pajak', 'tax', 'service', 'svc'];
+    for (final line in lines) {
+      final lower = line.toLowerCase();
+      if (lower.contains('incl') || lower.contains('termasuk')) {
+        continue;
+      }
+      if (!taxWords.any((w) => _containsWholeWord(lower, w)) &&
+          !lower.contains('service charge')) {
+        continue;
+      }
+      final tokens = _extractPriceTokens(line);
+      if (tokens.isNotEmpty) {
+        total += tokens.last.amount;
+      }
+    }
+    return total > 0 ? total : null;
+  }
+
+  static int? _extractDiscountTotal(List<String> lines) {
+    var total = 0;
+    const discWords = <String>[
+      'diskon',
+      'disc',
+      'discount',
+      'potongan',
+      'voucher',
+      'kupon',
+      'total hemat',
+      'anda hemat',
+    ];
+    for (final line in lines) {
+      final lower = line.toLowerCase();
+      if (!discWords.any((w) => _containsWholeWord(lower, w) || lower.contains(w))) {
+        continue;
+      }
+      // Avoid grabbing "Paket Hemat 25.000" as a discount.
+      if (lower.contains('paket hemat') || lower.contains('menu hemat')) {
+        continue;
+      }
+      final match = RegExp(
+        r'-?\s*(?:rp\.?\s*)?(\d{1,3}(?:[.,]\d{3})+|\d{3,7})\b',
+        caseSensitive: false,
+      ).allMatches(line).lastOrNull;
+      if (match != null) {
+        final digits = (match.group(1) ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+        final val = int.tryParse(digits) ?? 0;
+        if (val >= 500 && val <= 10000000) {
+          total += val;
+        }
+      }
+    }
+    return total > 0 ? total : null;
   }
 
   static String _inferSmartCategory({
@@ -1441,6 +1970,14 @@ class ReceiptOcrService {
       buffer.add('Rincian item (${items.length}):');
       for (final item in items) {
         buffer.add('- ${item.formatLine()}');
+      }
+      final taxAndSvc = _extractTaxAndServiceTotal(lines);
+      if (taxAndSvc != null && taxAndSvc > 0) {
+        buffer.add('Pajak & layanan: ${IdrFormat.currency(taxAndSvc)}');
+      }
+      final discount = _extractDiscountTotal(lines);
+      if (discount != null && discount > 0) {
+        buffer.add('Diskon: -${IdrFormat.currency(discount)}');
       }
     }
 

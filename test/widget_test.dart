@@ -291,6 +291,75 @@ Catatan: Pembayaran proyek desain freelance
       expect(incomeRes.suggestedKind, TransactionKind.income);
       expect(incomeRes.suggestedCategory, 'Bisnis & Freelance');
     });
+
+    test('captures complete menu items from multi-line Indonesian restaurant receipts', () {
+      const mokaFoodReceipt = '''
+WARUNG GEK NUSA
+Jl. Sudirman No. 12
+Kasir: Dinda
+Meja: 04 · Total Item: 7
+27/11/2026 12:35
+--------------------------------
+Ayam Geprek Sambal Matah
+  Pedas
+  2 x 18.000              36.000
+Nasi Goreng Jawa          25.000
+Paket Hemat 1             22.000
+Es Ovomaltine
+  Less Ice
+  1 x 16.000              16.000
+Es Teh Manis               5.000
+Es Teh Manis               5.000
+2 Nasi Putih              10.000
+--------------------------------
+Subtotal                 119.000
+PB1 10%                   11.900
+Service 5%                 5.950
+Diskon Promo             -10.000
+GRAND TOTAL              126.850
+QRIS                     126.850
+''';
+      final res = ReceiptOcrService.parseReceiptText(mokaFoodReceipt);
+      expect(res.totalAmount, 126850);
+      expect(res.suggestedCategory, 'Makan & Minum');
+      expect(res.items.length, 6);
+      expect(res.items[0].name, 'Ayam Geprek Sambal Matah');
+      expect(res.items[0].quantity, 2);
+      expect(res.items[0].price, 36000);
+      expect(res.items[1].name, 'Nasi Goreng Jawa');
+      expect(res.items[2].name, 'Paket Hemat 1');
+      expect(res.items[3].name, 'Es Ovomaltine');
+      expect(res.items[4].name, 'Es Teh Manis');
+      expect(res.items[4].quantity, 2);
+      expect(res.items[4].price, 10000);
+      expect(res.items[5].name, 'Nasi Putih');
+      expect(res.items[5].quantity, 2);
+      expect(res.items[5].price, 10000);
+      expect(res.receiptDetailText, contains('Pajak & layanan: Rp 17.850'));
+      expect(res.receiptDetailText, contains('Diskon: -Rp 10.000'));
+
+      const tiltedSplitReceipt = '''
+MIE GACOAN BANDUNG
+1 Mie Hompimpa Lv 2
+11.500
+2 Udang Keju
+21.000
+1 Es Gobak Sodor
+9.500
+Subtotal 42.000
+Total 46.200
+''';
+      final tilted = ReceiptOcrService.parseReceiptText(tiltedSplitReceipt);
+      expect(tilted.totalAmount, 46200);
+      expect(tilted.items.length, 3);
+      expect(tilted.items[0].name, 'Mie Hompimpa Lv 2');
+      expect(tilted.items[0].price, 11500);
+      expect(tilted.items[1].name, 'Udang Keju');
+      expect(tilted.items[1].quantity, 2);
+      expect(tilted.items[1].price, 21000);
+      expect(tilted.items[2].name, 'Es Gobak Sodor');
+      expect(tilted.items[2].price, 9500);
+    });
   });
 
   group('FinanceController Stage 1, 2 & 3 business logic', () {
