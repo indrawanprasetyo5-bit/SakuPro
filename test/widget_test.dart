@@ -215,6 +215,66 @@ Biaya Admin Rp2.500
       );
       expect(danaRes.totalAmount, 125000);
       expect(danaRes.merchantName, 'Warung Sate Madura');
+      expect(danaRes.detectedWalletName, 'DANA');
+      expect(danaRes.suggestedCategory, 'Makan & Minum');
+      expect(danaRes.receiptDetailText, contains('Sumber: DANA'));
+    });
+
+    test('extracts itemized store rows, e-wallet transfer notes, wallet source, and smart categories', () {
+      const storeReceipt = '''
+TOKO BERKAH JAYA
+27/11/2026 14:20
+Es Kopi Susu Gula Aren    24.000
+Caramel Macchiato 2x      56.000
+Croissant Butter          22.000
+SUBTOTAL                 102.000
+TOTAL                    102.000
+QRIS                     102.000
+''';
+      final storeRes = ReceiptOcrService.parseReceiptText(storeReceipt);
+      expect(storeRes.totalAmount, 102000);
+      expect(storeRes.items.length, 3);
+      expect(storeRes.items.first.name, 'Es Kopi Susu Gula Aren');
+      expect(storeRes.items.first.price, 24000);
+      expect(storeRes.paymentMethod, 'QRIS');
+      expect(storeRes.suggestedCategory, 'Ngopi');
+      expect(storeRes.receiptDetailText, contains('Es Kopi Susu Gula Aren'));
+      expect(storeRes.receiptDetailText, contains('Sumber: QRIS'));
+
+      const ewalletRentReceipt = '''
+Bank Jago
+Transfer Berhasil
+27 Nov 2026, 08:15 WIB
+-Rp1.500.000
+Penerima
+Ibu Ratna
+BCA 1234567890
+Catatan: Bayar kos bulan November
+Biaya Admin Rp2.500
+Metode BI-FAST
+''';
+      final rentRes = ReceiptOcrService.parseReceiptText(ewalletRentReceipt);
+      expect(rentRes.totalAmount, 1500000);
+      expect(rentRes.detectedWalletName, 'Bank Jago');
+      expect(rentRes.transferNote, 'Bayar kos bulan November');
+      expect(rentRes.adminFee, 2500);
+      expect(rentRes.suggestedKind, TransactionKind.expense);
+      expect(rentRes.suggestedCategory, 'Tagihan & Utilitas');
+      expect(rentRes.receiptDetailText, contains('Catatan resi: Bayar kos bulan November'));
+
+      const incomingReceipt = '''
+SeaBank
+Transfer Masuk Berhasil
++Rp2.500.000
+Dari
+PT Karya Digital
+Catatan: Pembayaran proyek desain freelance
+''';
+      final incomeRes = ReceiptOcrService.parseReceiptText(incomingReceipt);
+      expect(incomeRes.totalAmount, 2500000);
+      expect(incomeRes.detectedWalletName, 'SeaBank');
+      expect(incomeRes.suggestedKind, TransactionKind.income);
+      expect(incomeRes.suggestedCategory, 'Bisnis & Freelance');
     });
   });
 
@@ -262,6 +322,8 @@ Biaya Admin Rp2.500
           walletId: bca.id!,
           transactionDate: DateTime(2026, 11, 10, 12),
           createdAt: DateTime(2026, 11, 10, 12),
+          receiptDetail:
+              'Metode: QRIS\nRincian item:\n- Ayam Bakar · Rp 45.000\n- Es Teh Manis · Rp 8.000',
         ),
       );
 
@@ -316,10 +378,31 @@ Biaya Admin Rp2.500
 
       await freshController.restoreFromBackupJson(backupJson);
       expect(freshController.transactions.length, 3);
+      expect(
+        freshController.transactions
+            .firstWhere((t) => t.note == 'Makan bulan ini')
+            .receiptDetail,
+        contains('Ayam Bakar'),
+      );
       expect(freshController.goals.length, 1);
       expect(freshController.bills.length, 1);
       expect(freshController.debts.length, 1);
       expect(freshController.netWorth, controller.netWorth);
+
+      // Backward compatibility check for v2 transaction rows without receipt columns.
+      final legacyTx = TransactionModel.fromMap(<String, Object?>{
+        'id': 99,
+        'type': 'expense',
+        'amount': 25000,
+        'category': 'Ngopi',
+        'note': 'Kopi lama',
+        'wallet_id': 1,
+        'transaction_date': DateTime(2026, 11, 1).toIso8601String(),
+        'created_at': DateTime(2026, 11, 1).toIso8601String(),
+      });
+      expect(legacyTx.receiptDetail, isEmpty);
+      expect(legacyTx.receiptImagePath, isEmpty);
+      expect(legacyTx.hasReceiptInfo, isFalse);
     });
   });
 
@@ -382,5 +465,63 @@ Biaya Admin Rp2.500
 
     expect(find.text('SakuProWann Terkunci'), findsNothing);
     expect(find.text('Insight Otomatis'), findsOneWidget);
+  });
+
+  testWidgets('Tapping receipt transaction opens TransactionDetailSheet cleanly at 360dp and 1.3x text scale', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3.0;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+
+    final controller = FinanceController(
+      customStore: InMemorySakuStore(),
+      clock: () => DateTime(2026, 11, 27, 13, 15),
+    );
+    await controller.initialize();
+    final gopay = controller.wallets.firstWhere((w) => w.name == 'GoPay');
+
+    await controller.addTransaction(
+      TransactionModel(
+        kind: TransactionKind.expense,
+        amount: 60000,
+        category: 'Belanja',
+        note: 'Indomaret',
+        walletId: gopay.id!,
+        transactionDate: DateTime(2026, 11, 27, 13, 10),
+        createdAt: DateTime(2026, 11, 27, 13, 10),
+        receiptDetail:
+            'Metode: QRIS\nRincian item:\n- Roti Tawar · Rp 16.500\n- Susu UHT 1L · Rp 21.500\n- Kopi Botol · Rp 22.000',
+      ),
+    );
+
+    await tester.pumpWidget(SakuProApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    final tileFinder = find.text('Indomaret');
+    await tester.scrollUntilVisible(
+      tileFinder,
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(tileFinder);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rincian'), findsOneWidget);
+    await tester.tap(tileFinder, warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rincian Struk & Resi'), findsOneWidget);
+    expect(find.text('Roti Tawar'), findsOneWidget);
+    expect(find.text('Susu UHT 1L'), findsOneWidget);
+    expect(find.text('Salin'), findsOneWidget);
+    expect(find.text('Ubah'), findsOneWidget);
+    expect(find.text('Hapus'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

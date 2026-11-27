@@ -4,6 +4,7 @@ import '../models/transaction_item.dart';
 import '../services/finance_controller.dart';
 import '../theme/app_colors.dart';
 import 'quick_input_sheet.dart';
+import 'transaction_detail_sheet.dart';
 import 'transaction_tile.dart';
 
 class TransactionsHistorySheet extends StatefulWidget {
@@ -62,6 +63,7 @@ class _TransactionsHistorySheetState extends State<TransactionsHistorySheet> {
           widget.controller.walletById(tx.walletId)?.name.toLowerCase() ?? '';
       return tx.displayTitle.toLowerCase().contains(q) ||
           tx.category.toLowerCase().contains(q) ||
+          tx.receiptDetail.toLowerCase().contains(q) ||
           walletName.contains(q);
     }).toList();
   }
@@ -119,7 +121,7 @@ class _TransactionsHistorySheetState extends State<TransactionsHistorySheet> {
                         controller: _searchController,
                         onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
-                          hintText: 'Cari catatan, kategori, atau dompet...',
+                          hintText: 'Cari catatan, item struk, kategori, dompet...',
                           prefixIcon: Icon(
                             Icons.search_rounded,
                             color: saku.textMuted,
@@ -190,6 +192,22 @@ class _TransactionsHistorySheetState extends State<TransactionsHistorySheet> {
                             return TransactionTile(
                               transaction: tx,
                               controller: widget.controller,
+                              onTap: () {
+                                TransactionDetailSheet.show(
+                                  context,
+                                  transaction: tx,
+                                  controller: widget.controller,
+                                  onEdit: () async {
+                                    await QuickInputSheet.show(
+                                      context,
+                                      controller: widget.controller,
+                                      existingTransaction: tx,
+                                    );
+                                  },
+                                  onDelete: () =>
+                                      widget.onDeleteRequest(context, tx),
+                                );
+                              },
                               onEdit: () async {
                                 await QuickInputSheet.show(
                                   context,

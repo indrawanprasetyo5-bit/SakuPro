@@ -29,6 +29,8 @@ class TransactionModel {
     this.toWalletId,
     required this.transactionDate,
     required this.createdAt,
+    this.receiptDetail = '',
+    this.receiptImagePath = '',
   });
 
   final int? id;
@@ -40,8 +42,27 @@ class TransactionModel {
   final int? toWalletId;
   final DateTime transactionDate;
   final DateTime createdAt;
+  final String receiptDetail;
+  final String receiptImagePath;
 
   String get displayTitle => note.trim().isNotEmpty ? note.trim() : category;
+
+  bool get hasReceiptDetail => receiptDetail.trim().isNotEmpty;
+
+  bool get hasReceiptImage => receiptImagePath.trim().isNotEmpty;
+
+  bool get hasReceiptInfo => hasReceiptDetail || hasReceiptImage;
+
+  String get receiptDetailInline {
+    if (!hasReceiptDetail) {
+      return '';
+    }
+    return receiptDetail
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .join(' | ');
+  }
 
   TransactionModel copyWith({
     int? id,
@@ -54,6 +75,8 @@ class TransactionModel {
     bool clearToWallet = false,
     DateTime? transactionDate,
     DateTime? createdAt,
+    String? receiptDetail,
+    String? receiptImagePath,
   }) {
     return TransactionModel(
       id: id ?? this.id,
@@ -65,6 +88,8 @@ class TransactionModel {
       toWalletId: clearToWallet ? null : (toWalletId ?? this.toWalletId),
       transactionDate: transactionDate ?? this.transactionDate,
       createdAt: createdAt ?? this.createdAt,
+      receiptDetail: receiptDetail ?? this.receiptDetail,
+      receiptImagePath: receiptImagePath ?? this.receiptImagePath,
     );
   }
 
@@ -79,6 +104,8 @@ class TransactionModel {
       'to_wallet_id': kind == TransactionKind.transfer ? toWalletId : null,
       'transaction_date': transactionDate.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
+      'receipt_detail': receiptDetail,
+      'receipt_image_path': receiptImagePath,
     };
   }
 
@@ -97,6 +124,8 @@ class TransactionModel {
       createdAt:
           DateTime.tryParse((map['created_at'] as String?) ?? '') ??
           DateTime.now(),
+      receiptDetail: (map['receipt_detail'] as String?) ?? '',
+      receiptImagePath: (map['receipt_image_path'] as String?) ?? '',
     );
   }
 }

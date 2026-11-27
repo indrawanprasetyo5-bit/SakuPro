@@ -430,7 +430,7 @@ class ExportBackupService {
       final tx = sortedTx[idx];
       final row = dataStartRow + idx;
       final zebra = idx.isOdd;
-      sheet.setRowHeight(row, 21);
+      sheet.setRowHeight(row, tx.hasReceiptDetail ? 34 : 21);
 
       final fromName = walletMap[tx.walletId] ?? 'Dompet';
       final toName = tx.toWalletId != null ? walletMap[tx.toWalletId!] : null;
@@ -495,11 +495,14 @@ class ExportBackupService {
         TextCellValue(tx.category),
         _dataStyle(zebra: zebra),
       );
+      final ledgerNote = tx.hasReceiptDetail
+          ? '${tx.displayTitle}\n${tx.receiptDetailInline}'
+          : tx.displayTitle;
       _writeCell(
         sheet,
         5,
         row,
-        TextCellValue(tx.displayTitle),
+        TextCellValue(ledgerNote),
         _dataStyle(zebra: zebra, wrap: true),
       );
       _writeCell(

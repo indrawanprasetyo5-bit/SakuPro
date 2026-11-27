@@ -13,6 +13,7 @@ import '../models/wallet.dart';
 import '../theme/currency_format.dart';
 import 'automation_bridge_service.dart';
 import 'export_backup_service.dart';
+import 'receipt_archive.dart';
 
 enum SafeSpendLevel {
   safe('Aman'),
@@ -1054,7 +1055,17 @@ class FinanceController extends ChangeNotifier {
     if (store == null) {
       return;
     }
+    TransactionModel? existing;
+    for (final tx in _transactions) {
+      if (tx.id == id) {
+        existing = tx;
+        break;
+      }
+    }
     await store.deleteTransaction(id);
+    if (existing != null && existing.hasReceiptImage) {
+      unawaited(ReceiptArchive.deleteIfOwned(existing.receiptImagePath));
+    }
     await _reloadData();
     notifyListeners();
   }

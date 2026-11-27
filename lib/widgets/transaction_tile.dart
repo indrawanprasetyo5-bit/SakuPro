@@ -17,6 +17,7 @@ class TransactionTile extends StatelessWidget {
     required this.controller,
     required this.onEdit,
     required this.onDelete,
+    this.onTap,
     this.onQuickDelete,
   });
 
@@ -24,6 +25,7 @@ class TransactionTile extends StatelessWidget {
   final FinanceController controller;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onTap;
   final VoidCallback? onQuickDelete;
 
   @override
@@ -75,7 +77,7 @@ class TransactionTile extends StatelessWidget {
       child: InkWell(
         onTap: () {
           HapticFeedback.selectionClick();
-          onEdit();
+          (onTap ?? onEdit)();
         },
         borderRadius: BorderRadius.circular(SakuRadius.md),
         child: Padding(
@@ -138,46 +140,95 @@ class TransactionTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: <Widget>[
-                  Text(
-                    amountText,
-                    style: TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w800,
-                      color: amountColor,
-                      fontFeatures: AppTheme.tabularNums,
-                    ),
-                  ),
-                  if (transaction.kind == TransactionKind.transfer)
-                    Text(
-                      'Transfer',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: saku.transfer,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 132),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: <Widget>[
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        amountText,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: amountColor,
+                          fontFeatures: AppTheme.tabularNums,
+                        ),
                       ),
                     ),
-                ],
+                    if (transaction.kind == TransactionKind.transfer)
+                      Text(
+                        'Transfer',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: saku.transfer,
+                        ),
+                      )
+                    else if (transaction.hasReceiptInfo)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            Icons.receipt_long_outlined,
+                            size: 12,
+                            color: saku.textMuted,
+                          ),
+                          const SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              'Rincian',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: saku.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(width: 2),
               PopupMenuButton<String>(
                 tooltip: 'Opsi transaksi',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 40),
                 icon: Icon(
                   Icons.more_vert_rounded,
                   size: 19,
                   color: saku.textMuted,
                 ),
                 onSelected: (val) {
-                  if (val == 'edit') {
+                  if (val == 'detail') {
+                    (onTap ?? onEdit)();
+                  } else if (val == 'edit') {
                     onEdit();
                   } else if (val == 'delete') {
                     onDelete();
                   }
                 },
-                itemBuilder: (ctx) => const <PopupMenuEntry<String>>[
-                  PopupMenuItem<String>(
+                itemBuilder: (ctx) => <PopupMenuEntry<String>>[
+                  if (onTap != null)
+                    const PopupMenuItem<String>(
+                      value: 'detail',
+                      child: Row(
+                        children: <Widget>[
+                          Icon(Icons.receipt_long_outlined, size: 18),
+                          SizedBox(width: 10),
+                          Text('Lihat Detail'),
+                        ],
+                      ),
+                    ),
+                  const PopupMenuItem<String>(
                     value: 'edit',
                     child: Row(
                       children: <Widget>[
@@ -187,7 +238,7 @@ class TransactionTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  PopupMenuItem<String>(
+                  const PopupMenuItem<String>(
                     value: 'delete',
                     child: Row(
                       children: <Widget>[

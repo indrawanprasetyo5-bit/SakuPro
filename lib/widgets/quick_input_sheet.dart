@@ -8,6 +8,7 @@ import '../models/transaction_item.dart';
 import '../models/wallet.dart';
 import '../services/finance_controller.dart';
 import '../services/quick_input_parser.dart';
+import '../services/receipt_archive.dart';
 import '../services/receipt_ocr_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
@@ -95,6 +96,7 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
   late final TextEditingController _smartController;
   late final TextEditingController _amountController;
   late final TextEditingController _noteController;
+  late final TextEditingController _detailController;
 
   late TransactionKind _selectedKind;
   late String _selectedCategory;
@@ -102,6 +104,7 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
   int? _selectedTargetWalletId;
   int? _overrideSmartWalletId;
   late DateTime _selectedDate;
+  String _pendingReceiptImagePath = '';
   bool _isSaving = false;
   bool _isScanningOcr = false;
   ScannedReceiptData? _lastScannedReceipt;
@@ -131,6 +134,8 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
         text: existing.amount.toString(),
       );
       _noteController = TextEditingController(text: existing.note);
+      _detailController = TextEditingController(text: existing.receiptDetail);
+      _pendingReceiptImagePath = existing.receiptImagePath;
     } else {
       _selectedKind = widget.initialKind;
       _selectedCategory = CategoryCatalog.forKind(_selectedKind).first.name;
@@ -141,6 +146,8 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
       _selectedDate = widget.controller.now;
       _amountController = TextEditingController();
       _noteController = TextEditingController();
+      _detailController = TextEditingController();
+      _pendingReceiptImagePath = '';
     }
 
     if (widget.initialReceiptImagePath != null && !_isEditing) {
@@ -172,6 +179,7 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
     _smartController.dispose();
     _amountController.dispose();
     _noteController.dispose();
+    _detailController.dispose();
     super.dispose();
   }
 
@@ -335,6 +343,10 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
     try {
       final now = widget.controller.now;
       final cleanNote = _noteController.text.trim();
+      final cleanDetail = _detailController.text.trim();
+      final savedImagePath = _pendingReceiptImagePath.trim().isNotEmpty
+          ? await ReceiptArchive.archiveIfNeeded(_pendingReceiptImagePath)
+          : '';
       final category = _selectedKind == TransactionKind.transfer
           ? CategoryCatalog.transferMeta.name
           : _selectedCategory;
@@ -352,6 +364,8 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
               : null,
           clearToWallet: _selectedKind != TransactionKind.transfer,
           transactionDate: _selectedDate,
+          receiptDetail: cleanDetail,
+          receiptImagePath: savedImagePath,
         );
         await widget.controller.updateTransaction(updated);
       } else {
@@ -366,6 +380,8 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
               : null,
           transactionDate: _selectedDate,
           createdAt: now,
+          receiptDetail: cleanDetail,
+          receiptImagePath: savedImagePath,
         );
         await widget.controller.addTransaction(tx);
       }
@@ -483,24 +499,94 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
     }
   }
 
+  int? _matchWalletIdByName(String? detectedName) {
+    if (detectedName == null || detectedName.trim().isEmpty) {
+      return null;
+    }
+    final normalized = detectedName.toLowerCase().trim();
+    final aliases = <String>{
+      normalized,
+      if (normalized.contains('jago')) 'jago',
+      if (normalized.contains('seabank')) 'seabank',
+      if (normalized.contains('shopeepay')) 'shopee',
+      if (normalized.contains('gopay')) 'gopay',
+      if (normalized.contains('dana')) 'dana',
+      if (normalized.contains('ovo')) 'ovo',
+      if (normalized.contains('bca')) 'bca',
+      if (normalized.contains('mandiri')) 'mandiri',
+      if (normalized.contains('bri')) 'bri',
+      if (normalized.contains('blu')) 'blu',
+    };
+
+    for (final w in widget.controller.wallets) {
+      final wName = w.name.toLowerCase().trim();
+      if (aliases.contains(wName)) {
+        return w.id;
+      }
+    }
+    for (final w in widget.controller.wallets) {
+      final wName = w.name.toLowerCase().trim();
+      if (wName.length < 3) {
+        continue;
+      }
+      for (final alias in aliases) {
+        if (wName.contains(alias) || alias.contains(wName)) {
+          return w.id;
+        }
+      }
+    }
+    return null;
+  }
+
   void _applyScannedResult(ScannedReceiptData result) {
-    final validCategories = CategoryCatalog.forKind(TransactionKind.expense);
-    final learned = widget.controller.lookupLearnedCategory(result.merchantName);
+    final detectedKind = result.suggestedKind;
+    final validCategories = CategoryCatalog.forKind(detectedKind);
+
+    String? pickValidLearned(String? text) {
+      if (text == null || text.trim().isEmpty) {
+        return null;
+      }
+      final candidate = widget.controller.lookupLearnedCategory(text);
+      if (candidate != null &&
+          validCategories.any((c) => c.name == candidate)) {
+        return candidate;
+      }
+      return null;
+    }
+
+    final learned =
+        pickValidLearned(result.merchantName) ??
+        pickValidLearned(result.transferNote);
     final preferredCat = learned ?? result.suggestedCategory;
-    final hasCat = validCategories.any((c) => c.name == preferredCat);
+    final resolvedCategory = validCategories.any((c) => c.name == preferredCat)
+        ? preferredCat
+        : validCategories.first.name;
+    final matchedWalletId = _matchWalletIdByName(result.detectedWalletName);
+
+    final summaryBits = <String>[
+      if (result.totalAmount != null) IdrFormat.currency(result.totalAmount!),
+      resolvedCategory,
+      if (result.items.isNotEmpty) '${result.items.length} item',
+      if (result.detectedWalletName != null) result.detectedWalletName!,
+    ];
 
     setState(() {
       _isScanningOcr = false;
       _lastScannedReceipt = result;
       _mode = InputEntryMode.manualForm;
-      _selectedKind = TransactionKind.expense;
-      _selectedCategory = hasCat ? preferredCat : validCategories.first.name;
+      _selectedKind = detectedKind;
+      _selectedCategory = resolvedCategory;
+      if (matchedWalletId != null) {
+        _selectedWalletId = matchedWalletId;
+      }
       _noteController.text = result.merchantName;
+      _detailController.text = result.receiptDetailText;
+      _pendingReceiptImagePath = result.sourceImagePath ?? '';
       if (result.totalAmount != null && result.totalAmount! > 0) {
         _amountController.text = result.totalAmount.toString();
       }
       _ocrInfoBanner = result.totalAmount != null
-          ? 'Struk "${result.merchantName}" terbaca (${IdrFormat.currency(result.totalAmount!)}).'
+          ? 'Struk "${result.merchantName}" terbaca (${summaryBits.join(' · ')}).'
           : 'Toko "${result.merchantName}" terbaca, silakan cek atau isi nominal total.';
     });
   }
@@ -1421,6 +1507,79 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _detailController,
+          minLines: 2,
+          maxLines: 5,
+          keyboardType: TextInputType.multiline,
+          decoration: const InputDecoration(
+            labelText: 'Rincian Struk / Detail Item (opsional)',
+            hintText: 'Otomatis terisi saat scan struk atau bagikan resi e-wallet',
+            alignLabelWithHint: true,
+          ),
+        ),
+        if (_pendingReceiptImagePath.isNotEmpty &&
+            ReceiptArchive.existsSync(_pendingReceiptImagePath)) ...<Widget>[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: saku.surfaceMuted,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: saku.border),
+            ),
+            child: Row(
+              children: <Widget>[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    width: 42,
+                    height: 42,
+                    child: ReceiptArchive.buildImage(
+                      _pendingReceiptImagePath,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Foto struk terlampir',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: saku.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'Bisa dilihat lagi di detail transaksi',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: saku.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Hapus lampiran foto',
+                  onPressed: () {
+                    setState(() => _pendingReceiptImagePath = '');
+                  },
+                  icon: Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: saku.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 18),
         FilledButton.icon(
           onPressed: _isSaving ? null : _saveFromManual,

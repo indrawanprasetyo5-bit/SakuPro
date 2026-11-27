@@ -149,7 +149,7 @@ class SqliteSakuStore implements SakuStore {
     final fullPath = p.join(dbDir, 'saku_pro_v1.db');
     _db = await openDatabase(
       fullPath,
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE wallets (
@@ -175,7 +175,9 @@ class SqliteSakuStore implements SakuStore {
             wallet_id INTEGER NOT NULL,
             to_wallet_id INTEGER,
             transaction_date TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            receipt_detail TEXT NOT NULL DEFAULT '',
+            receipt_image_path TEXT NOT NULL DEFAULT ''
           )
         ''');
 
@@ -272,6 +274,14 @@ class SqliteSakuStore implements SakuStore {
           );
           await db.execute(
             "ALTER TABLE bills ADD COLUMN last_paid_month TEXT NOT NULL DEFAULT ''",
+          );
+        }
+        if (oldVersion < 3) {
+          await db.execute(
+            "ALTER TABLE transactions ADD COLUMN receipt_detail TEXT NOT NULL DEFAULT ''",
+          );
+          await db.execute(
+            "ALTER TABLE transactions ADD COLUMN receipt_image_path TEXT NOT NULL DEFAULT ''",
           );
         }
       },
@@ -823,7 +833,7 @@ class SqliteSakuStore implements SakuStore {
 
     return <String, Object?>{
       'app': 'saku_pro',
-      'schema_version': 2,
+      'schema_version': 3,
       'exported_at': DateTime.now().toIso8601String(),
       'global_budget': globalBudget,
       'wallets': wallets.map((w) => w.toMap()).toList(),
@@ -1339,7 +1349,7 @@ class InMemorySakuStore implements SakuStore {
 
     return <String, Object?>{
       'app': 'saku_pro',
-      'schema_version': 2,
+      'schema_version': 3,
       'exported_at': DateTime.now().toIso8601String(),
       'global_budget': globalBudget,
       'wallets': wallets.map((w) => w.toMap()).toList(),

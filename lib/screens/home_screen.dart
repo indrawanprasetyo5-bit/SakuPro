@@ -14,6 +14,7 @@ import '../widgets/luxury_widgets.dart';
 import '../widgets/quick_input_sheet.dart';
 import '../widgets/settings_sheet.dart';
 import '../widgets/split_bill_sheet.dart';
+import '../widgets/transaction_detail_sheet.dart';
 import '../widgets/transaction_tile.dart';
 import '../widgets/transactions_history_sheet.dart';
 
@@ -474,6 +475,29 @@ class HomeScreen extends StatelessWidget {
                       TransactionTile(
                         transaction: recentTx[i],
                         controller: controller,
+                        onTap: () {
+                          final currentTx = recentTx[i];
+                          TransactionDetailSheet.show(
+                            context,
+                            transaction: currentTx,
+                            controller: controller,
+                            onEdit: () async {
+                              final updated = await QuickInputSheet.show(
+                                context,
+                                controller: controller,
+                                existingTransaction: currentTx,
+                              );
+                              if (updated == true && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Perubahan disimpan.'),
+                                  ),
+                                );
+                              }
+                            },
+                            onDelete: () => _confirmDelete(context, currentTx),
+                          );
+                        },
                         onEdit: () async {
                           final updated = await QuickInputSheet.show(
                             context,
