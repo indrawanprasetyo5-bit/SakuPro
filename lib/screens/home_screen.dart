@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -5,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../models/transaction_item.dart';
 import '../services/finance_controller.dart';
+import '../services/receipt_archive.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
@@ -79,21 +82,31 @@ class HomeScreen extends StatelessWidget {
       return;
     }
     final deletedSnapshot = tx.copyWith(id: null);
-    await controller.deleteTransaction(tx.id!);
+    await controller.deleteTransaction(tx.id!, deleteReceiptFile: false);
     if (context.mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('"${tx.displayTitle}" dihapus.'),
-            action: SnackBarAction(
-              label: 'Urungkan',
-              onPressed: () {
-                controller.addTransaction(deletedSnapshot);
-              },
-            ),
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      final snackController = messenger.showSnackBar(
+        SnackBar(
+          content: Text('"${tx.displayTitle}" dihapus.'),
+          action: SnackBarAction(
+            label: 'Urungkan',
+            onPressed: () {
+              controller.addTransaction(deletedSnapshot);
+            },
           ),
+        ),
+      );
+      if (tx.hasReceiptImage) {
+        unawaited(
+          snackController.closed.then((reason) {
+            if (reason != SnackBarClosedReason.action) {
+              return ReceiptArchive.deleteIfOwned(tx.receiptImagePath);
+            }
+            return Future<void>.value();
+          }),
         );
+      }
     }
   }
 
@@ -152,21 +165,31 @@ class HomeScreen extends StatelessWidget {
 
     if (confirmed == true && tx.id != null && context.mounted) {
       final deletedSnapshot = tx.copyWith(id: null);
-      await controller.deleteTransaction(tx.id!);
+      await controller.deleteTransaction(tx.id!, deleteReceiptFile: false);
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text('"${tx.displayTitle}" dihapus.'),
-              action: SnackBarAction(
-                label: 'Urungkan',
-                onPressed: () {
-                  controller.addTransaction(deletedSnapshot);
-                },
-              ),
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.hideCurrentSnackBar();
+        final snackController = messenger.showSnackBar(
+          SnackBar(
+            content: Text('"${tx.displayTitle}" dihapus.'),
+            action: SnackBarAction(
+              label: 'Urungkan',
+              onPressed: () {
+                controller.addTransaction(deletedSnapshot);
+              },
             ),
+          ),
+        );
+        if (tx.hasReceiptImage) {
+          unawaited(
+            snackController.closed.then((reason) {
+              if (reason != SnackBarClosedReason.action) {
+                return ReceiptArchive.deleteIfOwned(tx.receiptImagePath);
+              }
+              return Future<void>.value();
+            }),
           );
+        }
       }
     }
   }

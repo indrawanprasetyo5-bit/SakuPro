@@ -32,6 +32,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _isHandlingExternalIntent = false;
   bool _wasReadyForIntents = false;
+  String? _queuedSharedImagePath;
+  String? _queuedLaunchAction;
 
   bool _isQuickTyping = false;
   bool _isSavingInline = false;
@@ -86,9 +88,22 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _consumePendingExternalIntents() async {
-    if (widget.controller.isLoading ||
-        widget.controller.isSessionLocked ||
-        widget.controller.isUsingInMemory) {
+    if (widget.controller.isLoading || widget.controller.isSessionLocked) {
+      return;
+    }
+    if (_queuedSharedImagePath != null && _queuedSharedImagePath!.isNotEmpty) {
+      final queued = _queuedSharedImagePath!;
+      _queuedSharedImagePath = null;
+      await _handleSharedImagePath(queued);
+      return;
+    }
+    if (_queuedLaunchAction != null && _queuedLaunchAction!.isNotEmpty) {
+      final queued = _queuedLaunchAction!;
+      _queuedLaunchAction = null;
+      await _handleWidgetLaunchAction(queued);
+      return;
+    }
+    if (widget.controller.isUsingInMemory) {
       return;
     }
     final sharedPath =
@@ -104,10 +119,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleSharedImagePath(String filePath) async {
-    if (!mounted ||
-        _isHandlingExternalIntent ||
-        widget.controller.isSessionLocked) {
+    if (!mounted) {
       return;
+    }
+    if (widget.controller.isSessionLocked || widget.controller.isLoading) {
+      _queuedSharedImagePath = filePath;
+      return;
+    }
+    if (_isHandlingExternalIntent) {
+      return;
+    }
+    if (!widget.controller.isUsingInMemory) {
+      unawaited(AutomationBridgeService.consumePendingSharedImage());
     }
     _closeQuickTyping();
     _isHandlingExternalIntent = true;
@@ -131,10 +154,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleWidgetLaunchAction(String action) async {
-    if (!mounted ||
-        _isHandlingExternalIntent ||
-        widget.controller.isSessionLocked) {
+    if (!mounted) {
       return;
+    }
+    if (widget.controller.isSessionLocked || widget.controller.isLoading) {
+      _queuedLaunchAction = action;
+      return;
+    }
+    if (_isHandlingExternalIntent) {
+      return;
+    }
+    if (!widget.controller.isUsingInMemory) {
+      unawaited(AutomationBridgeService.consumePendingLaunchAction());
     }
     _closeQuickTyping();
     _isHandlingExternalIntent = true;
@@ -231,13 +262,23 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return;
     }
 
+    var resolvedCategory = parsed.category;
+    if (!parsed.hasExplicitCategory &&
+        parsed.kind != TransactionKind.transfer &&
+        parsed.note.isNotEmpty) {
+      final learned = widget.controller.lookupLearnedCategory(parsed.note);
+      if (learned != null) {
+        resolvedCategory = learned;
+      }
+    }
+
     setState(() => _isSavingInline = true);
     try {
       final now = widget.controller.now;
       final tx = TransactionModel(
         kind: parsed.kind,
         amount: parsed.amount!,
-        category: parsed.category,
+        category: resolvedCategory,
         note: parsed.note,
         walletId: parsed.wallet!.id!,
         toWalletId: parsed.kind == TransactionKind.transfer

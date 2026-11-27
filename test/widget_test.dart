@@ -238,6 +238,7 @@ QRIS                     102.000
       expect(storeRes.items.first.price, 24000);
       expect(storeRes.paymentMethod, 'QRIS');
       expect(storeRes.suggestedCategory, 'Ngopi');
+      expect(storeRes.receiptDate, DateTime(2026, 11, 27, 14, 20));
       expect(storeRes.receiptDetailText, contains('Es Kopi Susu Gula Aren'));
       expect(storeRes.receiptDetailText, contains('Sumber: QRIS'));
 
@@ -258,9 +259,23 @@ Metode BI-FAST
       expect(rentRes.detectedWalletName, 'Bank Jago');
       expect(rentRes.transferNote, 'Bayar kos bulan November');
       expect(rentRes.adminFee, 2500);
+      expect(rentRes.receiptDate, DateTime(2026, 11, 27, 8, 15));
       expect(rentRes.suggestedKind, TransactionKind.expense);
       expect(rentRes.suggestedCategory, 'Tagihan & Utilitas');
       expect(rentRes.receiptDetailText, contains('Catatan resi: Bayar kos bulan November'));
+
+      expect(ReceiptOcrService.classifyNoteCategory('Indomaret'), 'Belanja');
+      expect(
+        ReceiptOcrService.classifyNoteCategory('Bayar kos bulanan'),
+        'Tagihan & Utilitas',
+      );
+      expect(
+        ReceiptOcrService.classifyNoteCategory(
+          'Gaji bulanan',
+          kind: TransactionKind.income,
+        ),
+        'Gaji',
+      );
 
       const incomingReceipt = '''
 SeaBank

@@ -1050,7 +1050,10 @@ class FinanceController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> deleteTransaction(int id) async {
+  Future<void> deleteTransaction(
+    int id, {
+    bool deleteReceiptFile = true,
+  }) async {
     final store = _store;
     if (store == null) {
       return;
@@ -1063,7 +1066,7 @@ class FinanceController extends ChangeNotifier {
       }
     }
     await store.deleteTransaction(id);
-    if (existing != null && existing.hasReceiptImage) {
+    if (deleteReceiptFile && existing != null && existing.hasReceiptImage) {
       unawaited(ReceiptArchive.deleteIfOwned(existing.receiptImagePath));
     }
     await _reloadData();

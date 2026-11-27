@@ -48,6 +48,7 @@ class ScannedReceiptData {
     this.paymentMethod,
     this.transferNote,
     this.adminFee,
+    this.receiptDate,
     this.items = const <ReceiptLineItem>[],
     this.receiptDetailText = '',
     this.sourceImagePath,
@@ -63,6 +64,7 @@ class ScannedReceiptData {
   final String? paymentMethod;
   final String? transferNote;
   final int? adminFee;
+  final DateTime? receiptDate;
   final List<ReceiptLineItem> items;
   final String receiptDetailText;
   final String? sourceImagePath;
@@ -80,6 +82,7 @@ class ScannedReceiptData {
       paymentMethod: paymentMethod,
       transferNote: transferNote,
       adminFee: adminFee,
+      receiptDate: receiptDate,
       items: items,
       receiptDetailText: receiptDetailText,
       sourceImagePath: sourceImagePath ?? this.sourceImagePath,
@@ -977,6 +980,7 @@ class ReceiptOcrService {
     final adminFee = _extractAdminFee(lines);
     final suggestedKind = _detectTransactionKind(lines);
     final items = _extractLineItems(lines, bestTotal);
+    final receiptDate = _parseReceiptDateTime(lines);
 
     final category = _inferSmartCategory(
       kind: suggestedKind,
@@ -1007,12 +1011,27 @@ class ReceiptOcrService {
       paymentMethod: paymentMethod,
       transferNote: transferNote,
       adminFee: adminFee,
+      receiptDate: receiptDate,
       items: items,
       receiptDetailText: detailSummary,
       rawText: rawText,
       reconstructedLines: lines,
       amountCandidates: candidates.take(4).toList(),
     );
+  }
+
+  static String? classifyNoteCategory(
+    String text, {
+    TransactionKind kind = TransactionKind.expense,
+  }) {
+    final trimmed = text.trim();
+    if (trimmed.length < 2 || kind == TransactionKind.transfer) {
+      return null;
+    }
+    if (kind == TransactionKind.income) {
+      return _matchCategoryMap(trimmed, _incomeCategoryRules);
+    }
+    return _matchCategoryMap(trimmed, _expenseCategoryRules);
   }
 
   static TransactionKind _detectTransactionKind(List<String> lines) {
@@ -1435,13 +1454,97 @@ class ReceiptOcrService {
 
   static String? _extractReceiptDateLine(List<String> lines) {
     final pattern = RegExp(
-      r'\b(?:\d{1,2}\s+(?:jan|feb|mar|apr|mei|may|jun|jul|agu|aug|sep|okt|oct|nov|des|dec)[a-z]*\s+\d{4}(?:[,\s]+\d{1,2}:\d{2}(?:\s*wib|wita|wit)?)?|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+\d{1,2}:\d{2})?)\b',
+      r'\b(?:\d{1,2}\s+(?:jan|feb|mar|apr|mei|may|jun|jul|agu|aug|sep|okt|oct|nov|des|dec)[a-z]*\s+\d{4}(?:[,\s]+\d{1,2}:\d{2}(?:\s*wib|wita|wit)?)?|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+\d{1,2}:\d{2})?|\d{4}[/-]\d{1,2}[/-]\d{1,2}(?:\s+\d{1,2}:\d{2})?)\b',
       caseSensitive: false,
     );
     for (final line in lines) {
       final m = pattern.firstMatch(line);
       if (m != null) {
         return m.group(0)?.trim();
+      }
+    }
+    return null;
+  }
+
+  static DateTime? _parseReceiptDateTime(List<String> lines) {
+    const monthLookup = <String, int>{
+      'jan': 1,
+      'feb': 2,
+      'mar': 3,
+      'apr': 4,
+      'mei': 5,
+      'may': 5,
+      'jun': 6,
+      'jul': 7,
+      'agu': 8,
+      'aug': 8,
+      'sep': 9,
+      'okt': 10,
+      'oct': 10,
+      'nov': 11,
+      'des': 12,
+      'dec': 12,
+    };
+
+    DateTime? validate(int year, int month, int day, int hour, int minute) {
+      final maxYear = DateTime.now().year + 1;
+      if (year < 2020 || year > maxYear) return null;
+      if (month < 1 || month > 12) return null;
+      if (day < 1 || day > 31) return null;
+      final safeHour = (hour >= 0 && hour <= 23) ? hour : 12;
+      final safeMin = (minute >= 0 && minute <= 59) ? minute : 0;
+      final dt = DateTime(year, month, day, safeHour, safeMin);
+      if (dt.month != month || dt.day != day) return null;
+      return dt;
+    }
+
+    final namedPattern = RegExp(
+      r'\b(\d{1,2})\s+(jan|feb|mar|apr|mei|may|jun|jul|agu|aug|sep|okt|oct|nov|des|dec)[a-z]*\s+(\d{4})(?:[,\s]+(\d{1,2})[:.](\d{2}))?\b',
+      caseSensitive: false,
+    );
+    final dmyPattern = RegExp(
+      r'\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:\s+(\d{1,2})[:.](\d{2}))?\b',
+    );
+    final ymdPattern = RegExp(
+      r'\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:\s+(\d{1,2})[:.](\d{2}))?\b',
+    );
+
+    for (final line in lines) {
+      final named = namedPattern.firstMatch(line);
+      if (named != null) {
+        final day = int.tryParse(named.group(1) ?? '') ?? 0;
+        final monthKey = (named.group(2) ?? '').toLowerCase();
+        final month = monthLookup[monthKey] ?? 0;
+        final year = int.tryParse(named.group(3) ?? '') ?? 0;
+        final hour = int.tryParse(named.group(4) ?? '') ?? 12;
+        final minute = int.tryParse(named.group(5) ?? '') ?? 0;
+        final dt = validate(year, month, day, hour, minute);
+        if (dt != null) return dt;
+      }
+
+      final ymd = ymdPattern.firstMatch(line);
+      if (ymd != null) {
+        final year = int.tryParse(ymd.group(1) ?? '') ?? 0;
+        final month = int.tryParse(ymd.group(2) ?? '') ?? 0;
+        final day = int.tryParse(ymd.group(3) ?? '') ?? 0;
+        final hour = int.tryParse(ymd.group(4) ?? '') ?? 12;
+        final minute = int.tryParse(ymd.group(5) ?? '') ?? 0;
+        final dt = validate(year, month, day, hour, minute);
+        if (dt != null) return dt;
+      }
+
+      final dmy = dmyPattern.firstMatch(line);
+      if (dmy != null) {
+        final day = int.tryParse(dmy.group(1) ?? '') ?? 0;
+        final month = int.tryParse(dmy.group(2) ?? '') ?? 0;
+        var year = int.tryParse(dmy.group(3) ?? '') ?? 0;
+        if (year > 0 && year < 100) {
+          year += 2000;
+        }
+        final hour = int.tryParse(dmy.group(4) ?? '') ?? 12;
+        final minute = int.tryParse(dmy.group(5) ?? '') ?? 0;
+        final dt = validate(year, month, day, hour, minute);
+        if (dt != null) return dt;
       }
     }
     return null;

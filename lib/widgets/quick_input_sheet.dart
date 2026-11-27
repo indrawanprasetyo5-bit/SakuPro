@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -105,6 +106,7 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
   int? _overrideSmartWalletId;
   late DateTime _selectedDate;
   String _pendingReceiptImagePath = '';
+  bool _categoryManuallyPicked = false;
   bool _isSaving = false;
   bool _isScanningOcr = false;
   ScannedReceiptData? _lastScannedReceipt;
@@ -136,6 +138,7 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
       _noteController = TextEditingController(text: existing.note);
       _detailController = TextEditingController(text: existing.receiptDetail);
       _pendingReceiptImagePath = existing.receiptImagePath;
+      _categoryManuallyPicked = true;
     } else {
       _selectedKind = widget.initialKind;
       _selectedCategory = CategoryCatalog.forKind(_selectedKind).first.name;
@@ -576,8 +579,12 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
       _mode = InputEntryMode.manualForm;
       _selectedKind = detectedKind;
       _selectedCategory = resolvedCategory;
+      _categoryManuallyPicked = true;
       if (matchedWalletId != null) {
         _selectedWalletId = matchedWalletId;
+      }
+      if (result.receiptDate != null) {
+        _selectedDate = result.receiptDate!;
       }
       _noteController.text = result.merchantName;
       _detailController.text = result.receiptDetailText;
@@ -589,6 +596,47 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
           ? 'Struk "${result.merchantName}" terbaca (${summaryBits.join(' · ')}).'
           : 'Toko "${result.merchantName}" terbaca, silakan cek atau isi nominal total.';
     });
+  }
+
+  void _onManualNoteChanged(String text) {
+    if (_categoryManuallyPicked || _selectedKind == TransactionKind.transfer) {
+      return;
+    }
+    final validCategories = CategoryCatalog.forKind(_selectedKind);
+    final learned = widget.controller.lookupLearnedCategory(text);
+    final candidate =
+        (learned != null && validCategories.any((c) => c.name == learned))
+        ? learned
+        : ReceiptOcrService.classifyNoteCategory(text, kind: _selectedKind);
+    if (candidate != null &&
+        candidate != _selectedCategory &&
+        validCategories.any((c) => c.name == candidate)) {
+      setState(() {
+        _selectedCategory = candidate;
+      });
+    }
+  }
+
+  Future<void> _attachReceiptPhoto(ImageSource source) async {
+    if (kIsWeb) {
+      return;
+    }
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 88,
+      );
+      if (picked != null && mounted) {
+        setState(() {
+          _pendingReceiptImagePath = picked.path;
+        });
+      }
+    } catch (_) {
+      // Ignore cancelled or unavailable camera/gallery picker actions.
+    }
   }
 
   void _showScannedTextDialog(ScannedReceiptData data) {
@@ -1225,8 +1273,18 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
                   onTap: () {
                     setState(() {
                       _selectedKind = kind;
+                      _categoryManuallyPicked = false;
                       final valid = CategoryCatalog.forKind(kind);
-                      if (!valid.any((c) => c.name == _selectedCategory)) {
+                      final autoCat = kind == TransactionKind.transfer
+                          ? null
+                          : ReceiptOcrService.classifyNoteCategory(
+                              _noteController.text,
+                              kind: kind,
+                            );
+                      if (autoCat != null &&
+                          valid.any((c) => c.name == autoCat)) {
+                        _selectedCategory = autoCat;
+                      } else if (!valid.any((c) => c.name == _selectedCategory)) {
                         _selectedCategory = valid.first.name;
                       }
                       if (kind == TransactionKind.transfer &&
@@ -1242,7 +1300,7 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
                   child: Container(
                     constraints: const BoxConstraints(minHeight: 46),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
+                      horizontal: 6,
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
@@ -1253,31 +1311,37 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
                         width: isSelected ? 1.5 : 1,
                       ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        Icon(
-                          _iconForKind(kind),
-                          size: 16,
-                          color: isSelected ? activeColor : saku.textSecondary,
-                        ),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Text(
-                            kind.label,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
+                    child: Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Icon(
+                              _iconForKind(kind),
+                              size: 14,
                               color: isSelected
                                   ? activeColor
                                   : saku.textSecondary,
                             ),
-                          ),
+                            const SizedBox(width: 4),
+                            Text(
+                              kind.label,
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: isSelected
+                                    ? activeColor
+                                    : saku.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -1475,6 +1539,7 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
                 selected: active,
                 onSelected: (_) => setState(() {
                   _selectedCategory = cat.name;
+                  _categoryManuallyPicked = true;
                 }),
               );
             }).toList(),
@@ -1486,6 +1551,7 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
             Expanded(
               child: TextField(
                 controller: _noteController,
+                onChanged: _onManualNoteChanged,
                 textInputAction: TextInputAction.done,
                 decoration: const InputDecoration(
                   labelText: 'Catatan (opsional)',
@@ -1577,6 +1643,72 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ] else if (!kIsWeb) ...<Widget>[
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: PopupMenuButton<ImageSource>(
+              tooltip: 'Lampirkan Foto Struk',
+              onSelected: _attachReceiptPhoto,
+              itemBuilder: (ctx) => const <PopupMenuEntry<ImageSource>>[
+                PopupMenuItem<ImageSource>(
+                  value: ImageSource.camera,
+                  child: Row(
+                    children: <Widget>[
+                      Icon(Icons.photo_camera_outlined, size: 18),
+                      SizedBox(width: 10),
+                      Text('Ambil Foto (Kamera)'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<ImageSource>(
+                  value: ImageSource.gallery,
+                  child: Row(
+                    children: <Widget>[
+                      Icon(Icons.photo_library_outlined, size: 18),
+                      SizedBox(width: 10),
+                      Text('Pilih dari Galeri'),
+                    ],
+                  ),
+                ),
+              ],
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 40),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: saku.surfaceMuted,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: saku.border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(
+                      Icons.attach_file_rounded,
+                      size: 16,
+                      color: saku.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'Lampirkan Foto Struk (opsional)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: saku.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
