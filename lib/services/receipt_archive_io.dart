@@ -88,3 +88,44 @@ Future<void> deleteReceiptImageIfOwned(String path) async {
     // Ignore cleanup errors when file is already removed.
   }
 }
+
+Future<(int, int)> getReceiptStorageStatsRaw() async {
+  try {
+    final docs = await getApplicationDocumentsDirectory();
+    final dir = Directory(p.join(docs.path, 'receipts'));
+    if (!dir.existsSync()) {
+      return (0, 0);
+    }
+    var count = 0;
+    var bytes = 0;
+    await for (final entity in dir.list(followLinks: false)) {
+      if (entity is File) {
+        count++;
+        bytes += await entity.length();
+      }
+    }
+    return (count, bytes);
+  } catch (_) {
+    return (0, 0);
+  }
+}
+
+Future<int> clearAllArchivedReceipts() async {
+  try {
+    final docs = await getApplicationDocumentsDirectory();
+    final dir = Directory(p.join(docs.path, 'receipts'));
+    if (!dir.existsSync()) {
+      return 0;
+    }
+    var removed = 0;
+    await for (final entity in dir.list(followLinks: false)) {
+      if (entity is File) {
+        await entity.delete();
+        removed++;
+      }
+    }
+    return removed;
+  } catch (_) {
+    return 0;
+  }
+}

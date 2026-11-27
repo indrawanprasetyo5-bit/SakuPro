@@ -1254,6 +1254,14 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
     final categories = CategoryCatalog.forKind(_selectedKind);
     final manualAmount = _parseManualAmount();
     final dateLabel = DateFormat('dd MMM yyyy').format(_selectedDate);
+    final duplicateMatch = (!_isEditing && manualAmount > 0)
+        ? widget.controller.findPotentialDuplicate(
+            kind: _selectedKind,
+            amount: manualAmount,
+            date: _selectedDate,
+            note: _noteController.text,
+          )
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1709,6 +1717,45 @@ class _QuickInputSheetState extends State<QuickInputSheet> {
                   ],
                 ),
               ),
+            ),
+          ),
+        ],
+        if (duplicateMatch != null) ...<Widget>[
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: saku.warningSoft,
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(
+                color: saku.warning.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    size: 18,
+                    color: saku.warning,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Mirip transaksi sebelumnya: ${duplicateMatch.displayTitle} (${IdrFormat.currency(duplicateMatch.amount)} · ${DateFormat('dd MMM').format(duplicateMatch.transactionDate)}). Pastikan tidak tercatat ganda.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: saku.warning,
+                      height: 1.35,
+                      fontFeatures: AppTheme.tabularNums,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

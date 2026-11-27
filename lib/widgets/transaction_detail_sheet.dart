@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
@@ -42,6 +44,96 @@ class TransactionDetailSheet extends StatelessWidget {
         onDelete: onDelete,
       ),
     );
+  }
+
+  static Future<void> confirmDelete(
+    BuildContext context, {
+    required FinanceController controller,
+    required TransactionModel transaction,
+  }) async {
+    final confirmed = await showSakuBottomSheet<bool>(
+      context: context,
+      builder: (ctx) {
+        final saku = ctx.saku;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              const SakuSheetHandle(),
+              const SizedBox(height: 16),
+              Text(
+                'Hapus transaksi ini?',
+                style: Theme.of(ctx).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '"${transaction.displayTitle}" (${IdrFormat.currency(transaction.amount)}) bakal dihapus dan saldo dompet langsung balik seperti semula.',
+                style: Theme.of(ctx).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      child: const Text('Batal'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: saku.expense,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                      child: const Text('Hapus'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (confirmed == true && transaction.id != null && context.mounted) {
+      final deletedSnapshot = transaction.copyWith(id: null);
+      await controller.deleteTransaction(
+        transaction.id!,
+        deleteReceiptFile: false,
+      );
+      if (context.mounted) {
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.hideCurrentSnackBar();
+        final snackController = messenger.showSnackBar(
+          SnackBar(
+            content: Text('"${transaction.displayTitle}" dihapus.'),
+            action: SnackBarAction(
+              label: 'Urungkan',
+              onPressed: () {
+                controller.addTransaction(deletedSnapshot);
+              },
+            ),
+          ),
+        );
+        if (transaction.hasReceiptImage) {
+          unawaited(
+            snackController.closed.then((reason) {
+              if (reason != SnackBarClosedReason.action) {
+                return ReceiptArchive.deleteIfOwned(
+                  transaction.receiptImagePath,
+                );
+              }
+              return Future<void>.value();
+            }),
+          );
+        }
+      }
+    }
   }
 
   void _openFullImage(BuildContext context, String imagePath) {

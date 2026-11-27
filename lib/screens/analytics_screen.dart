@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../models/transaction_item.dart';
 import '../services/export_backup_service.dart';
 import '../services/finance_controller.dart';
 import '../theme/app_colors.dart';
@@ -10,6 +11,7 @@ import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
 import '../widgets/luxury_widgets.dart';
 import '../widgets/settings_sheet.dart';
+import '../widgets/transactions_history_sheet.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key, required this.controller});
@@ -210,6 +212,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           _CategoryChartCard(
             report: report,
             hideBalance: hidden,
+            onCategoryTap: (category) {
+              HapticFeedback.selectionClick();
+              final shortMonth =
+                  '${_shortMonths[(activeMonth.month - 1).clamp(0, 11)]} ${activeMonth.year}';
+              TransactionsHistorySheet.show(
+                context,
+                controller: ctrl,
+                initialCategory: category,
+                initialKind: TransactionKind.expense,
+                initialMonth: activeMonth,
+                titleOverride: '$category · $shortMonth',
+              );
+            },
           ),
           const SizedBox(height: 24),
           Text(
@@ -487,10 +502,12 @@ class _CategoryChartCard extends StatelessWidget {
   const _CategoryChartCard({
     required this.report,
     required this.hideBalance,
+    required this.onCategoryTap,
   });
 
   final MonthlyAnalyticsReport report;
   final bool hideBalance;
+  final ValueChanged<String> onCategoryTap;
 
   @override
   Widget build(BuildContext context) {
@@ -504,9 +521,24 @@ class _CategoryChartCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            'Pengeluaran per Kategori',
-            style: Theme.of(context).textTheme.titleMedium,
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  'Pengeluaran per Kategori',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              if (slices.isNotEmpty)
+                Text(
+                  'Ketuk rincian',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: saku.textMuted,
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
           if (slices.isEmpty)
@@ -585,10 +617,11 @@ class _CategoryChartCard extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             for (var i = 0; i < slices.length; i++) ...<Widget>[
-              if (i > 0) Divider(height: 18, color: saku.border),
+              if (i > 0) Divider(height: 12, color: saku.border),
               _CategorySliceRow(
                 slice: slices[i],
                 hideBalance: hideBalance,
+                onTap: () => onCategoryTap(slices[i].category),
               ),
             ],
           ],
@@ -602,67 +635,85 @@ class _CategorySliceRow extends StatelessWidget {
   const _CategorySliceRow({
     required this.slice,
     required this.hideBalance,
+    required this.onTap,
   });
 
   final CategorySpendSlice slice;
   final bool hideBalance;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final saku = context.saku;
     final pct = (slice.share * 100).round();
 
-    return Column(
-      children: <Widget>[
-        Row(
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Column(
           children: <Widget>[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: slice.color.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(slice.icon, size: 16, color: slice.color),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    slice.category,
-                    style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              children: <Widget>[
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: slice.color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  Text(
-                    '${slice.count} transaksi · $pct%',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: saku.textMuted,
-                      fontFeatures: AppTheme.tabularNums,
-                    ),
+                  child: Icon(slice.icon, size: 16, color: slice.color),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        slice.category,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        '${slice.count} transaksi · $pct%',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: saku.textMuted,
+                          fontFeatures: AppTheme.tabularNums,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  IdrFormat.currency(slice.amount, hidden: hideBalance),
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: saku.textPrimary,
+                    fontFeatures: AppTheme.tabularNums,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: saku.textMuted,
+                ),
+              ],
             ),
-            Text(
-              IdrFormat.currency(slice.amount, hidden: hideBalance),
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: saku.textPrimary,
-                fontFeatures: AppTheme.tabularNums,
-              ),
+            const SizedBox(height: 8),
+            SmoothProgressBar(
+              value: slice.share.clamp(0.0, 1.0),
+              color: slice.color,
+              height: 6,
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        SmoothProgressBar(
-          value: slice.share.clamp(0.0, 1.0),
-          color: slice.color,
-          height: 6,
-        ),
-      ],
+      ),
     );
   }
 }

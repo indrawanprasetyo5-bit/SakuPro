@@ -1073,6 +1073,71 @@ class FinanceController extends ChangeNotifier {
     notifyListeners();
   }
 
+  TransactionModel? findPotentialDuplicate({
+    required TransactionKind kind,
+    required int amount,
+    required DateTime date,
+    String note = '',
+    int? excludeId,
+  }) {
+    if (amount <= 0) {
+      return null;
+    }
+    final normalizedNote = _normalizeMerchantKey(note);
+    TransactionModel? sameDayFallback;
+
+    for (final tx in _transactions) {
+      if (excludeId != null && tx.id == excludeId) {
+        continue;
+      }
+      if (tx.kind != kind || tx.amount != amount) {
+        continue;
+      }
+      final hoursDiff = tx.transactionDate.difference(date).inHours.abs();
+      if (hoursDiff > 48) {
+        continue;
+      }
+      final txNote = _normalizeMerchantKey(tx.note);
+      final noteMatches =
+          normalizedNote.length >= 3 &&
+          txNote.length >= 3 &&
+          (txNote == normalizedNote ||
+              txNote.contains(normalizedNote) ||
+              normalizedNote.contains(txNote));
+      if (noteMatches) {
+        return tx;
+      }
+      final sameDay =
+          tx.transactionDate.year == date.year &&
+          tx.transactionDate.month == date.month &&
+          tx.transactionDate.day == date.day;
+      if (sameDay && sameDayFallback == null) {
+        sameDayFallback = tx;
+      }
+    }
+    return sameDayFallback;
+  }
+
+  Future<int> clearArchivedReceiptPhotos() async {
+    final store = _store;
+    final removedFiles = await ReceiptArchive.clearAll();
+    if (store == null) {
+      return removedFiles;
+    }
+    var updatedTx = 0;
+    for (final tx in _transactions) {
+      if (tx.hasReceiptImage && tx.id != null) {
+        await store.updateTransaction(tx.copyWith(receiptImagePath: ''));
+        updatedTx++;
+      }
+    }
+    if (updatedTx > 0) {
+      await _reloadData();
+      notifyListeners();
+    }
+    return removedFiles > 0 ? removedFiles : updatedTx;
+  }
+
   Future<void> addWallet({
     required String name,
     required WalletKind kind,

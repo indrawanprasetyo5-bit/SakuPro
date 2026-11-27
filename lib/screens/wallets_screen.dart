@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../theme/currency_format.dart';
 import '../widgets/luxury_widgets.dart';
 import '../widgets/quick_input_sheet.dart';
+import '../widgets/transactions_history_sheet.dart';
 import '../widgets/wallet_brand_avatar.dart';
 import '../widgets/wallet_form_sheet.dart';
 
@@ -192,6 +193,14 @@ class WalletsScreen extends StatelessWidget {
                   );
                 }
               },
+              onViewHistory: () {
+                TransactionsHistorySheet.show(
+                  context,
+                  controller: controller,
+                  initialWalletId: wallet.id,
+                  titleOverride: 'Mutasi ${wallet.name}',
+                );
+              },
               onQuickRecord: () async {
                 final saved = await QuickInputSheet.show(
                   context,
@@ -223,12 +232,14 @@ class _WalletCard extends StatelessWidget {
     required this.wallet,
     required this.hideBalance,
     required this.onEdit,
+    required this.onViewHistory,
     required this.onQuickRecord,
   });
 
   final WalletModel wallet;
   final bool hideBalance;
   final VoidCallback onEdit;
+  final VoidCallback onViewHistory;
   final VoidCallback onQuickRecord;
 
   @override
@@ -304,42 +315,76 @@ class _WalletCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: <Widget>[
-                    AnimatedCurrencyText(
-                      amount: wallet.balance,
-                      hidden: hideBalance,
-                      style: TextStyle(
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
-                        color: wallet.balance < 0
-                            ? saku.expense
-                            : saku.textPrimary,
-                        fontFeatures: AppTheme.tabularNums,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 118),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: AnimatedCurrencyText(
+                          amount: wallet.balance,
+                          hidden: hideBalance,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
+                            color: wallet.balance < 0
+                                ? saku.expense
+                                : saku.textPrimary,
+                            fontFeatures: AppTheme.tabularNums,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Atur saldo',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: saku.brandInteractive,
+                      const SizedBox(height: 2),
+                      Text(
+                        'Atur saldo',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: saku.brandInteractive,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 2),
+                IconButton(
+                  tooltip: 'Lihat mutasi ${wallet.name}',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 40,
+                  ),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    onViewHistory();
+                  },
+                  icon: Icon(
+                    Icons.receipt_long_outlined,
+                    size: 20,
+                    color: saku.textSecondary,
+                  ),
+                ),
                 IconButton(
                   tooltip: 'Catat transaksi di ${wallet.name}',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 40,
+                  ),
                   onPressed: () {
                     HapticFeedback.selectionClick();
                     onQuickRecord();
                   },
                   icon: Icon(
                     Icons.add_circle_outline_rounded,
+                    size: 21,
                     color: saku.textSecondary,
                   ),
                 ),

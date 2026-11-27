@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../services/export_backup_service.dart';
 import '../services/finance_controller.dart';
+import '../services/receipt_archive.dart';
 import '../services/security_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
@@ -94,17 +95,106 @@ class SettingsSectionPanel extends StatefulWidget {
 
 class _SettingsSectionPanelState extends State<SettingsSectionPanel> {
   bool _biometricAvailable = false;
+  ReceiptStorageStats _receiptStats = const ReceiptStorageStats(
+    fileCount: 0,
+    totalBytes: 0,
+  );
+  bool _isClearingPhotos = false;
 
   @override
   void initState() {
     super.initState();
     _checkBiometric();
+    _loadReceiptStats();
   }
 
   Future<void> _checkBiometric() async {
     final supported = await BiometricAuthService.isBiometricAvailable();
     if (mounted) {
       setState(() => _biometricAvailable = supported);
+    }
+  }
+
+  Future<void> _loadReceiptStats() async {
+    final stats = await ReceiptArchive.getStorageStats();
+    if (mounted) {
+      setState(() => _receiptStats = stats);
+    }
+  }
+
+  Future<void> _confirmClearReceiptPhotos() async {
+    if (_isClearingPhotos || _receiptStats.fileCount == 0) {
+      return;
+    }
+    final confirmed = await showSakuBottomSheet<bool>(
+      context: context,
+      builder: (ctx) {
+        final saku = ctx.saku;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              const SakuSheetHandle(),
+              const SizedBox(height: 16),
+              Text(
+                'Bersihkan arsip foto struk?',
+                style: Theme.of(ctx).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${_receiptStats.fileCount} foto (${_receiptStats.formattedSize}) akan dihapus dari memori HP. Semua catatan transaksi, nominal, dan teks rincian item struk tetap aman.',
+                style: Theme.of(ctx).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      child: const Text('Batal'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: saku.expense,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                      child: const Text('Bersihkan'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    setState(() => _isClearingPhotos = true);
+    try {
+      final removed = await widget.controller.clearArchivedReceiptPhotos();
+      await _loadReceiptStats();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '$removed foto struk dibersihkan. Data transaksi dan teks rincian tetap utuh.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isClearingPhotos = false);
+      }
     }
   }
 
@@ -415,7 +505,7 @@ class _SettingsSectionPanelState extends State<SettingsSectionPanel> {
         ),
         const SizedBox(height: 6),
         Text(
-          'Simpan seluruh dompet, transaksi, budget, goals, tagihan, dan hutang ke format JSON agar aman saat pindah perangkat.',
+          'Simpan seluruh dompet, transaksi, teks rincian struk, budget, goals, tagihan, dan hutang ke format JSON agar aman saat pindah perangkat.',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 12),
@@ -439,6 +529,76 @@ class _SettingsSectionPanelState extends State<SettingsSectionPanel> {
               label: const Text('Restore dari JSON'),
             ),
           ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: saku.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: saku.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Icon(
+                    Icons.photo_library_outlined,
+                    size: 18,
+                    color: saku.brandInteractive,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Arsip Foto Struk Lokal',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  Text(
+                    kIsWeb
+                        ? 'Khusus HP'
+                        : '${_receiptStats.fileCount} foto · ${_receiptStats.formattedSize}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: saku.textSecondary,
+                      fontFeatures: AppTheme.tabularNums,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Foto struk disimpan terpisah di memori HP dan tidak ikut di file Backup JSON (teks rincian item struk tetap ikut di JSON).',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: saku.textMuted,
+                  height: 1.4,
+                ),
+              ),
+              if (!kIsWeb && _receiptStats.fileCount > 0) ...<Widget>[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: saku.expense,
+                    side: BorderSide(
+                      color: saku.expense.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  onPressed: _isClearingPhotos
+                      ? null
+                      : _confirmClearReceiptPhotos,
+                  icon: const Icon(Icons.cleaning_services_outlined, size: 16),
+                  label: Text(
+                    _isClearingPhotos
+                        ? 'Membersihkan...'
+                        : 'Bersihkan Foto Struk',
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ],
     );

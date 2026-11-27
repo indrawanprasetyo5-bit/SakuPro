@@ -14,3 +14,7 @@ Widget buildReceiptImageWidget(
 }
 
 Future<void> deleteReceiptImageIfOwned(String path) async {}
+
+Future<(int, int)> getReceiptStorageStatsRaw() async => (0, 0);
+
+Future<int> clearAllArchivedReceipts() async => 0;

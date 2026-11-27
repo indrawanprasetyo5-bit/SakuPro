@@ -539,4 +539,98 @@ Catatan: Pembayaran proyek desain freelance
     expect(find.text('Hapus'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('v1.7.0: duplicate detection, wallet mutation, and Analytics category drill-down work cleanly', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final controller = FinanceController(
+      customStore: InMemorySakuStore(),
+      clock: () => DateTime(2026, 11, 27, 14, 0),
+    );
+    await controller.initialize();
+    final gopay = controller.wallets.firstWhere((w) => w.name == 'GoPay');
+    final bca = controller.wallets.firstWhere((w) => w.name == 'BCA');
+
+    await controller.addTransaction(
+      TransactionModel(
+        kind: TransactionKind.expense,
+        amount: 60000,
+        category: 'Belanja',
+        note: 'Indomaret',
+        walletId: gopay.id!,
+        transactionDate: DateTime(2026, 11, 27, 13, 30),
+        createdAt: DateTime(2026, 11, 27, 13, 30),
+      ),
+    );
+    await controller.addTransaction(
+      TransactionModel(
+        kind: TransactionKind.expense,
+        amount: 35000,
+        category: 'Makan & Minum',
+        note: 'Ayam Geprek',
+        walletId: bca.id!,
+        transactionDate: DateTime(2026, 11, 26, 12, 0),
+        createdAt: DateTime(2026, 11, 26, 12, 0),
+      ),
+    );
+
+    // Duplicate detector catches same-day / matching merchant+amount, ignores distinct entries.
+    final dup = controller.findPotentialDuplicate(
+      kind: TransactionKind.expense,
+      amount: 60000,
+      date: DateTime(2026, 11, 27, 14, 0),
+      note: 'Indomaret',
+    );
+    expect(dup, isNotNull);
+    expect(dup!.note, 'Indomaret');
+    expect(
+      controller.findPotentialDuplicate(
+        kind: TransactionKind.expense,
+        amount: 99000,
+        date: DateTime(2026, 11, 27, 14, 0),
+        note: 'Indomaret',
+      ),
+      isNull,
+    );
+
+    await tester.pumpWidget(SakuProApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    // 1. Open Dompet tab and tap GoPay mutation icon.
+    await tester.tap(find.text('Dompet'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Lihat mutasi GoPay'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mutasi GoPay (1)'), findsOneWidget);
+    expect(find.text('Hari Ini'), findsOneWidget);
+    expect(find.text('Indomaret'), findsOneWidget);
+    expect(find.text('Ayam Geprek'), findsNothing);
+    await tester.tap(find.byTooltip('Tutup'));
+    await tester.pumpAndSettle();
+
+    // 2. Open Analitik tab and drill down into Belanja category slice.
+    await tester.tap(find.text('Analitik'));
+    await tester.pumpAndSettle();
+    final belanjaSlice = find.text('Belanja');
+    await tester.scrollUntilVisible(
+      belanjaSlice,
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(belanjaSlice);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Belanja · Nov 2026 (1)'), findsOneWidget);
+    expect(find.text('Indomaret'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
