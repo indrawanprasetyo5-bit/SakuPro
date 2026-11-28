@@ -1095,40 +1095,47 @@ class ReceiptOcrService {
   }
 
   static String? _matchWalletBrand(String lowerText) {
-    if (lowerText.contains('bank jago') ||
-        _containsWholeWord(lowerText, 'jago') ||
-        lowerText.contains('kantong utama')) {
+    final cleaned = lowerText.replaceAll(
+      RegExp(
+        r'\b(sumber dana|terima dana|penerimaan dana|dana masuk|dana terkirim|dana diterima|pengembalian dana|pencairan dana)\b',
+      ),
+      ' ',
+    );
+
+    if (cleaned.contains('bank jago') ||
+        _containsWholeWord(cleaned, 'jago') ||
+        cleaned.contains('kantong utama')) {
       return 'Bank Jago';
     }
-    if (lowerText.contains('seabank')) {
+    if (cleaned.contains('seabank')) {
       return 'SeaBank';
     }
-    if (lowerText.contains('shopeepay')) {
+    if (cleaned.contains('shopeepay')) {
       return 'ShopeePay';
     }
-    if (lowerText.contains('gopay')) {
+    if (cleaned.contains('gopay')) {
       return 'GoPay';
     }
-    if (_containsWholeWord(lowerText, 'dana')) {
-      return 'DANA';
-    }
-    if (_containsWholeWord(lowerText, 'ovo')) {
-      return 'OVO';
-    }
-    if (lowerText.contains('mybca') ||
-        lowerText.contains('bca mobile') ||
-        lowerText.contains('m-bca') ||
-        _containsWholeWord(lowerText, 'bca')) {
+    if (cleaned.contains('mybca') ||
+        cleaned.contains('bca mobile') ||
+        cleaned.contains('m-bca') ||
+        _containsWholeWord(cleaned, 'bca')) {
       return 'BCA';
     }
-    if (lowerText.contains('livin') || lowerText.contains('mandiri')) {
+    if (cleaned.contains('livin') || cleaned.contains('mandiri')) {
       return 'Mandiri';
     }
-    if (lowerText.contains('brimo') || _containsWholeWord(lowerText, 'bri')) {
+    if (cleaned.contains('brimo') || _containsWholeWord(cleaned, 'bri')) {
       return 'BRI';
     }
-    if (lowerText.contains('blu by bca') || _containsWholeWord(lowerText, 'blu')) {
+    if (cleaned.contains('blu by bca') || _containsWholeWord(cleaned, 'blu')) {
       return 'blu';
+    }
+    if (_containsWholeWord(cleaned, 'ovo')) {
+      return 'OVO';
+    }
+    if (_containsWholeWord(cleaned, 'dana')) {
+      return 'DANA';
     }
     return null;
   }
